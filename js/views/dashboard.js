@@ -19,9 +19,9 @@ function renderDashboard() {
   $('#view').innerHTML = `
   <div class="grid kpis">
     <div class="card kpi hi"><div class="l">Ventas de hoy</div><div class="v num">${money(sum(todaySales, s => s.total))}</div><div class="s">${todaySales.length} transacciones</div></div>
-    <div class="card kpi"><div class="l">Ventas del mes</div><div class="v num">${money(sum(monthSales, s => s.total))}</div><div class="s">Utilidad ${money(sum(monthSales, s => s.total - s.cost))}</div></div>
+    <div class="card kpi"><div class="l">Ventas del mes</div><div class="v num">${money(sum(monthSales, s => s.total))}</div><div class="s">${can('costs.view') ? 'Utilidad ' + money(sum(monthSales, s => s.total - s.cost)) : monthSales.length + ' ventas'}</div></div>
     <div class="card kpi"><div class="l">Pares en stock</div><div class="v num">${units.toLocaleString('en-US')}</div><div class="s">${P.length} modelos</div></div>
-    <div class="card kpi"><div class="l">Valor del inventario</div><div class="v num">${money(cost)}</div><div class="s">A precio de venta ${money(retail)}</div></div>
+    <div class="card kpi"><div class="l">${can('costs.view') ? 'Valor del inventario' : 'Inventario a precio de venta'}</div><div class="v num">${money(can('costs.view') ? cost : retail)}</div><div class="s">${can('costs.view') ? 'A precio de venta ' + money(retail) : units + ' pares'}</div></div>
   </div>
   <div class="grid cols-2">
     <div class="card"><h3>Ventas · últimos 7 días</h3>
@@ -29,7 +29,7 @@ function renderDashboard() {
     <div class="card"><h3>Pares por categoría</h3>
       ${catRows.length ? catRows.map(([c, q]) => `<div class="hbar"><span>${esc(c)}</span><div class="t"><i style="width:${q / catMax * 100}%"></i></div><b class="num right">${q}</b></div>`).join('') : '<div class="empty">Sin productos</div>'}</div>
     <div class="card"><h3>Alertas de reposición (${alerts.length})</h3>
-      ${alerts.length ? `<div class="tablewrap" style="border:0"><table><tbody>${alerts.slice(0, 8).map(a => `<tr><td><div class="name">${esc(a.p.name)}</div><div class="meta">${esc(a.p.brand)} · ${esc(a.p.sku)}</div></td><td class="num">${a.t} pares</td><td><span class="badge ${a.st.cls}">${a.st.label}</span></td><td class="right"><button class="btn sm" data-action="addStock" data-id="${a.p.id}">Reponer</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Todo el inventario está sobre el mínimo 👌</div>'}</div>
+      ${alerts.length ? `<div class="tablewrap" style="border:0"><table><tbody>${alerts.slice(0, 8).map(a => `<tr><td><div class="name">${esc(a.p.name)}</div><div class="meta">${[a.p.brand, a.p.sku].filter(Boolean).map(esc).join(' · ')}</div></td><td class="num">${a.t} pares</td><td><span class="badge ${a.st.cls}">${a.st.label}</span></td><td class="right"><button class="btn sm" data-action="addStock" data-id="${a.p.id}">Reponer</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Todo el inventario está sobre el mínimo 👌</div>'}</div>
     <div class="card"><h3>Más vendidos · 30 días</h3>
       ${topRows.length ? `<div class="tablewrap" style="border:0"><table><tbody>${topRows.map((t, i) => `<tr><td class="muted num">${i + 1}</td><td class="name">${esc(t.name)}</td><td class="num">${t.qty} pares</td><td class="num right">${money(t.rev)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Aún no hay ventas</div>'}</div>
   </div>`;

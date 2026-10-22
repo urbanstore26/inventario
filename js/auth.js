@@ -1,7 +1,6 @@
 'use strict';
 /* Pantalla de inicio de sesión, arranque de la sesión y cierre */
 
-const ROLE_LABELS = {admin: 'Administrador', vendedor: 'Vendedor'};
 
 const AUTH_ICONS = {
   mail: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
@@ -33,7 +32,7 @@ function showAuth({demo = false, message = ''} = {}) {
       <p class="auth-err" id="authErr" role="alert"${message ? '' : ' hidden'}>${esc(message)}</p>
       <div class="auth-form">
         <p class="auth-text">Supabase no está configurado, así que la app funciona con datos de ejemplo guardados solo en este navegador. No hay cuentas de usuario.</p>
-        <label class="demo-role">Entrar como<select id="demoRole"><option value="admin">Administrador</option><option value="vendedor">Vendedor</option></select></label>
+        <label class="demo-role">Entrar como<select id="demoRole">${demoRoleList().map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></label>
         <button class="auth-btn" data-action="enterDemo">Entrar a la demo</button>
         <p class="auth-text auth-small">Para activar el login real y la base de datos, completa <code>js/config.js</code> (ver README).</p>
       </div>`;
@@ -62,7 +61,7 @@ async function startApp() {
 
 function renderUserBox() {
   const u = store.user;
-  $('#userBox').innerHTML = `<div class="u-name">${esc(u.name)}</div><div class="u-role">${esc(ROLE_LABELS[u.role] || u.role)}${store.mode === 'local' ? ' · datos locales' : ''}</div>
+  $('#userBox').innerHTML = `<div class="u-name">${esc(u.name)}</div><div class="u-role">${esc(u.roleName || u.role)}${store.mode === 'local' ? ' · datos locales' : ''}</div>
     <button class="btn sm" data-action="logout">Cerrar sesión</button>`;
 }
 

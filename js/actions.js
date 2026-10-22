@@ -22,6 +22,9 @@ const ACTIONS = {
   editUser: el => userForm(el.dataset.id),
   userPassword: el => userPasswordForm(el.dataset.id),
   deleteUser: el => removeUser(el.dataset.id),
+  newRole: () => roleForm(),
+  editRole: el => roleForm(el.dataset.id),
+  deleteRole: el => removeRole(el.dataset.id),
   genPassword(el) { const i = el.closest('.pw-row').querySelector('input'); i.type = 'text'; i.value = randomPassword(); i.focus(); i.select(); },
   logout: doLogout,
   togglePw(el) {
@@ -56,11 +59,13 @@ const ACTIONS = {
   viewSale: el => showSale(el.dataset.id),
   voidSale: el => voidSale(el.dataset.id),
   printReceipt: printTicket,
-  exportInv() {
-    const rows = [['SKU', 'Producto', 'Marca', 'Categoría', 'Género', 'Color', 'Costo', 'Precio', 'Talla', 'Stock']];
-    state.products.forEach(p => { const sz = sortSizes(Object.keys(p.stock)); (sz.length ? sz : ['']).forEach(s => rows.push([p.sku, p.name, p.brand, p.category, p.gender, p.color, p.cost, p.price, s, s ? p.stock[s] : 0])); });
+  /* Misma estructura que la hoja de Excel: SKU · Modelo · Color · Talla · Costo · Precio venta · Stock Inicial · Vendidos · Stock actual · Ganancia unidad · Valor Inventario · Estado */
+  exportInv: () => run(null, async () => {
+    const data = (await store.variantReport()).sort((a, b) => a.sku.localeCompare(b.sku, 'es', {numeric: true}) || parseFloat(a.size) - parseFloat(b.size));
+    const rows = [['SKU', 'Modelo', 'Color', 'Talla', 'Costo', 'Precio venta', 'Stock Inicial', 'Vendidos', 'Stock actual', 'Ganancia unidad', 'Valor Inventario', 'Estado']];
+    data.forEach(r => rows.push([r.sku, r.model, r.color, r.size, r.cost, r.price, r.initial, r.sold, r.stock, r.unitProfit, r.inventoryValue, r.status]));
     download(`inventario-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
-  },
+  }),
   exportSales() {
     const rows = [['N.º', 'Fecha', 'Cliente', 'Pago', 'Estado', 'SKU', 'Producto', 'Talla', 'Cantidad', 'Precio', 'Total venta', 'Descuento']];
     state.sales.forEach(s => s.items.forEach(i => rows.push(['V-' + pad(s.num, 4), fmtDate(s.date), s.customer, s.method, s.status, i.sku, i.name, i.size, i.qty, i.price, s.total, s.discount])));

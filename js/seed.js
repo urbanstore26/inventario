@@ -22,6 +22,7 @@ function seed(s) {
   defs.forEach((d, i) => {
     const p = {id: uid() + i, sku: 'PU-' + pad(i + 1, 4), name: d[0], brand: d[1], category: d[2], gender: d[3], color: d[4], cost: d[5], price: d[6], minStock: '', stock: {}, createdAt: t0.toISOString()};
     for (let z = d[7]; z <= d[8]; z++) p.stock[z] = d[9] ? (d[9][z] || 0) : Math.floor(rnd() * 8) + 2;
+    p.initial = Object.fromEntries(Object.entries(p.stock).filter(([, q]) => q > 0));   // Stock Inicial por talla
     s.products.push(p);
     Object.entries(p.stock).forEach(([sz, q]) => q > 0 && s.movements.push({id: uid() + sz + i, date: t0.toISOString(), productId: p.id, sku: p.sku, name: p.name, size: sz, type: 'inicial', qty: q, balance: q, note: 'Stock inicial', ref: ''}));
   });

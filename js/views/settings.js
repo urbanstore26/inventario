@@ -16,7 +16,7 @@ function renderSettings() {
       ${store.mode === 'local' ? `
       <p class="muted" style="margin-top:0">Modo demostración: los datos (y las fotos) se guardan solo en este navegador. Haz respaldos con frecuencia.</p>
       <div class="grid">
-        <button class="btn" data-action="exportInv">Exportar inventario (CSV)</button>
+        ${can('reports.export') ? '<button class="btn" data-action="exportInv">Exportar inventario (CSV)</button>' : ''}
         <button class="btn" data-action="backup">Descargar respaldo completo (JSON)</button>
         <button class="btn" data-action="restore">Restaurar respaldo…</button>
         <hr style="border:0;border-top:1px solid var(--line);width:100%">
@@ -25,9 +25,9 @@ function renderSettings() {
       </div>` : `
       <p class="muted" style="margin-top:0">Conectado a Supabase como <b>${esc(store.user.email)}</b>. Los datos están en la base de datos y los respalda Supabase.</p>
       <div class="grid">
-        <button class="btn" data-action="exportInv">Exportar inventario (CSV)</button>
-        <button class="btn" data-action="exportSales">Exportar ventas (CSV)</button>
-        <button class="btn" data-action="exportMov">Exportar movimientos (CSV)</button>
+        ${can('reports.export') ? '<button class="btn" data-action="exportInv">Exportar inventario (CSV)</button>' : ''}
+        ${can('reports.export') ? '<button class="btn" data-action="exportSales">Exportar ventas (CSV)</button>' : ''}
+        ${can('reports.export') ? '<button class="btn" data-action="exportMov">Exportar movimientos (CSV)</button>' : ''}
       </div>`}
     </div>
   </div>`;

@@ -58,7 +58,13 @@ const SupabaseStore = {
     const {data, error} = await this.client.from('profiles').select('full_name, role, active').eq('id', user.id).maybeSingle();
     if (error) throw new Error(friendlyError(error));
     if (!data || !data.active) throw new Error('Tu cuenta no está activa. Pide a un administrador que la habilite.');
-    this.user = {id: user.id, name: data.full_name || user.email, email: user.email, role: data.role};
+    // nombre del rol y permisos (se leen de las tablas roles y role_permissions)
+    const [role, perms] = await Promise.all([
+      this.client.from('roles').select('name').eq('id', data.role).maybeSingle(),
+      this.client.from('role_permissions').select('permission').eq('role_id', data.role)
+    ]);
+    this.user = {id: user.id, name: data.full_name || user.email, email: user.email, role: data.role,
+      roleName: (role.data || {}).name || data.role, permissions: (perms.data || []).map(x => x.permission)};
   },
 
   publicUrl(path) {
@@ -69,15 +75,21 @@ const SupabaseStore = {
 
   async reload() {
     const c = this.client;
-    const [settings, products, sales, movements, profiles] = await Promise.all([
+    const [settings, products, sales, movements, profiles, roles, permissions, rolePerms] = await Promise.all([
       c.from('store_settings').select('*').eq('id', 1).single(),
       c.from('products').select('*, product_stock(size, qty)').order('name'),
       c.from('sales').select('*, sale_items(*)').order('created_at', {ascending: false}).limit(500),
       c.from('stock_movements').select('*').order('created_at', {ascending: false}).limit(1000),
-      c.from('profiles').select('id, full_name, email, role, active, created_at').order('created_at')
+      c.from('profiles').select('id, full_name, email, role, active, created_at').order('created_at'),
+      c.from('roles').select('id, name, description, is_system').order('created_at'),
+      c.from('permissions').select('key, label, description').order('sort'),
+      c.from('role_permissions').select('role_id, permission')
     ]);
+    const rp = must(rolePerms);
     const st = must(settings);
     state = {
+      roles: must(roles).map(r => ({id: r.id, name: r.name, description: r.description, isSystem: r.is_system, permissions: rp.filter(x => x.role_id === r.id).map(x => x.permission)})),
+      permissions: must(permissions).map(p => ({key: p.key, label: p.label, description: p.description})),
       users: must(profiles).map(r => ({id: r.id, name: r.full_name || r.email || '', email: r.email || '', role: r.role, active: r.active, createdAt: r.created_at})),
       settings: {storeName: st.store_name, threshold: st.low_stock_threshold, sizes: st.sizes, nextSale: 0},
       products: must(products).map(r => ({
@@ -97,6 +109,9 @@ const SupabaseStore = {
         type: r.type, qty: r.qty, balance: r.balance, note: r.note, ref: r.sale_id || ''
       }))
     };
+    // si cambiaron los permisos de mi rol, se aplican sin volver a iniciar sesión
+    const mine = this.user && state.roles.find(r => r.id === this.user.role);
+    if (mine) this.user = {...this.user, roleName: mine.name, permissions: mine.permissions};
   },
 
   async saveProduct({id, data, stock, image}) {
@@ -182,6 +197,38 @@ const SupabaseStore = {
 
   async deleteUser(id) {
     await this.callAdmin({action: 'delete', user_id: id});
+    await this.reload();
+  },
+
+  /* Reporte por talla: la vista inventory_variants calcula Vendidos, Ganancia, Valor y Estado en el servidor
+     (con TODAS las ventas, no solo las 500 cargadas en pantalla). Se pagina porque la API limita filas por consulta. */
+  async variantReport() {
+    const rows = [], page = 1000;
+    for (let from = 0; ; from += page) {
+      const data = must(await this.client.from('inventory_variants').select('*').order('sku').order('size').range(from, from + page - 1));
+      rows.push(...data);
+      if (data.length < page) break;
+    }
+    return rows.map(r => ({
+      sku: r.sku, model: r.model, color: r.color || '', size: r.size, cost: Number(r.cost), price: Number(r.price), initial: r.initial_stock, sold: r.sold,
+      stock: r.current_stock, unitProfit: Number(r.unit_profit), inventoryValue: Number(r.inventory_value), retailValue: Number(r.retail_value), status: r.status
+    }));
+  },
+
+  /* ---- Roles y permisos: solo el rol Administrador; lo aplican las funciones SQL create_role / update_role / delete_role ---- */
+  async createRole({name, description, permissions}) {
+    const id = must(await this.client.rpc('create_role', {p_name: name, p_description: description || '', p_permissions: permissions}));
+    await this.reload();
+    return id;
+  },
+
+  async updateRole(id, {name, description, permissions}) {
+    must(await this.client.rpc('update_role', {p_id: id, p_name: name, p_description: description || '', p_permissions: permissions}));
+    await this.reload();
+  },
+
+  async deleteRole(id) {
+    must(await this.client.rpc('delete_role', {p_id: id}));
     await this.reload();
   }
 };

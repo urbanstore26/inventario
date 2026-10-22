@@ -20,7 +20,7 @@ function drawPosResults() {
   const q = pos.q.trim().toLowerCase();
   const list = state.products.filter(p => totalStock(p) > 0 && (!q || `${p.sku} ${p.name} ${p.brand} ${p.color}`.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 6);
   $('#posResults').innerHTML = list.length ? list.map(p => `<button class="res${pos.sel === p.id ? ' sel' : ''}" data-action="posPick" data-id="${p.id}">
-    <span class="prod">${thumb(p, 'sm')}<span><b>${esc(p.name)}</b><br><span class="meta muted">${esc(p.brand)} · ${esc(p.sku)}${p.color ? ' · ' + esc(p.color) : ''}</span></span></span>
+    <span class="prod">${thumb(p, 'sm')}<span><b>${esc(p.name)}</b><br><span class="meta muted">${[p.brand, p.sku, p.color].filter(Boolean).map(esc).join(' · ')}</span></span></span>
     <span class="right"><b class="num">${money(p.price)}</b><br><span class="meta muted">${totalStock(p)} pares</span></span></button>`).join('') : '<div class="empty">Sin resultados con stock</div>';
 }
 function drawPosSizes() {
@@ -115,7 +115,7 @@ function showSale(id) {
       <select id="tkWidth"><option value="80"${mm === '80' ? ' selected' : ''}>Rollo de 80 mm (estándar)</option><option value="58"${mm === '58' ? ' selected' : ''}>Rollo de 58 mm (angosto)</option></select></label></div>
     <div class="ticket-wrap">${receiptHTML(s)}</div>
     <div class="foot no-print">
-    ${s.status === 'completada' && isAdmin() ? `<button class="btn danger" data-action="voidSale" data-id="${s.id}">Anular venta</button>` : ''}
+    ${s.status === 'completada' && can('sales.void') ? `<button class="btn danger" data-action="voidSale" data-id="${s.id}">Anular venta</button>` : ''}
     <button class="btn" data-action="closeModal">Cerrar</button><button class="btn primary" data-action="printReceipt">Imprimir ticket</button></div>`);
 }
 

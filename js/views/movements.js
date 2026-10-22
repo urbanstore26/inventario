@@ -6,7 +6,7 @@ function renderMovements() {
   $('#view').innerHTML = `
   <div class="card" style="margin-bottom:14px"><h3>Registrar movimiento</h3>
     <form data-form="move"><div class="form-grid">
-      <label class="f">Producto<select id="mvProduct" name="pid" required><option value="">Selecciona…</option>${prods.map(p => `<option value="${p.id}"${p.id === f.pid ? ' selected' : ''}>${esc(p.sku)} — ${esc(p.name)} (${esc(p.brand)})</option>`).join('')}</select></label>
+      <label class="f">Producto<select id="mvProduct" name="pid" required><option value="">Selecciona…</option>${prods.map(p => `<option value="${p.id}"${p.id === f.pid ? ' selected' : ''}>${esc(p.sku)} — ${esc(p.name)}${p.brand ? ' (' + esc(p.brand) + ')' : ''}</option>`).join('')}</select></label>
       <label class="f">Talla<select id="mvSize" name="size" required></select></label>
       <label class="f">Tipo<select id="mvType" name="type"><option value="entrada">Entrada (compra / reposición)</option><option value="salida">Salida (merma, daño, obsequio)</option><option value="ajuste">Ajuste (conteo físico)</option></select></label>
       <label class="f"><span id="mvQtyLabel">Cantidad</span><input name="qty" type="number" min="0" step="1" required></label>

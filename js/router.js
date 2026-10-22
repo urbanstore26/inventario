@@ -1,5 +1,5 @@
 'use strict';
-/* Registro de vistas, permisos por rol y navegación por hash */
+/* Registro de vistas, permisos por pantalla y navegación por hash */
 
 const VIEWS = {
   dashboard: {title: 'Panel', render: renderDashboard},
@@ -12,19 +12,26 @@ const VIEWS = {
 };
 const NAV_LABELS = {dashboard: 'Panel', inventory: 'Inventario', pos: 'Vender', movements: 'Movimientos', sales: 'Ventas', users: 'Usuarios', settings: 'Ajustes'};
 
-/* Vendedor: ver stock, vender e imprimir tickets (el historial de ventas sirve para reimprimirlos). Administrador: todo. */
-const ROLE_VIEWS = {admin: Object.keys(VIEWS), vendedor: ['inventory', 'pos', 'sales']};
-const DEFAULT_VIEW = {admin: 'dashboard', vendedor: 'pos'};
+/* Permiso que da acceso a cada pantalla (los permisos se leen de la tabla de roles) */
+const VIEW_PERMISSION = {dashboard: 'dashboard.view', inventory: 'inventory.view', pos: 'sales.create', movements: 'stock.adjust', sales: 'sales.view', users: 'users.manage', settings: 'settings.manage'};
+/* Pantalla de inicio: la primera de esta lista a la que tenga acceso */
+const LANDING_ORDER = ['dashboard', 'pos', 'inventory', 'sales', 'movements', 'users', 'settings'];
 
 function route(opts) {
   if (!appReady) return;
-  const role = isAdmin() ? 'admin' : 'vendedor', allowed = ROLE_VIEWS[role];
-  const r = location.hash.replace(/^#\/?/, '') || DEFAULT_VIEW[role];
-  const v = allowed.includes(r) ? r : DEFAULT_VIEW[role];
-  $('#nav').innerHTML = allowed.map(k => `<a href="#/${k}" class="${k === v ? 'on' : ''}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${NAV_LABELS[k]}</a>`).join('');
-  $('#title').textContent = VIEWS[v].title;
+  const allowed = Object.keys(VIEWS).filter(k => can(VIEW_PERMISSION[k]));
   $('#today').textContent = new Date().toLocaleDateString('es', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'});
   document.title = state.settings.storeName + ' · Inventario';
+  if (!allowed.length) {
+    $('#nav').innerHTML = '';
+    $('#title').textContent = 'Sin permisos';
+    $('#view').innerHTML = '<div class="card empty">Tu rol no tiene permisos asignados.<br>Pide a un administrador que te asigne uno.</div>';
+    return;
+  }
+  const r = location.hash.replace(/^#\/?/, '');
+  const v = allowed.includes(r) ? r : LANDING_ORDER.find(k => allowed.includes(k));
+  $('#nav').innerHTML = allowed.map(k => `<a href="#/${k}" class="${k === v ? 'on' : ''}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${NAV_LABELS[k]}</a>`).join('');
+  $('#title').textContent = VIEWS[v].title;
   VIEWS[v].render();
   if (!(opts && opts.keepScroll)) window.scrollTo(0, 0);
 }

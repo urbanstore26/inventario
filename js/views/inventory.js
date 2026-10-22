@@ -12,30 +12,30 @@ function renderInventory() {
     <select id="invBrand"><option value="">Todas las marcas</option>${options(uniq('brand'), f.brand)}</select>
     <select id="invStatus"><option value="">Todo el stock</option>
       <option value="ok"${f.status === 'ok' ? ' selected' : ''}>Disponible</option><option value="low"${f.status === 'low' ? ' selected' : ''}>Stock bajo</option><option value="out"${f.status === 'out' ? ' selected' : ''}>Agotado</option></select>
-    ${isAdmin() ? '<button class="btn primary" data-action="newProduct">+ Nuevo producto</button>' : ''}
+    ${can('reports.export') ? '<button class="btn" data-action="exportInv">Exportar Excel</button>' : ''}${can('products.manage') ? '<button class="btn primary" data-action="newProduct">+ Nuevo producto</button>' : ''}
   </div>
   <div id="invTable"></div>`;
   drawInv();
 }
 function drawInv() {
-  const f = ui.inv, q = f.q.trim().toLowerCase(), admin = isAdmin();
+  const f = ui.inv, q = f.q.trim().toLowerCase(), canEdit = can('products.manage'), canStock = can('stock.adjust'), showCost = can('costs.view');
   const rows = state.products.filter(p =>
     (!q || `${p.sku} ${p.name} ${p.brand} ${p.color} ${p.category} ${p.gender}`.toLowerCase().includes(q)) &&
     (!f.cat || p.category === f.cat) && (!f.brand || p.brand === f.brand) && (!f.status || stockStatus(p).key === f.status)
   ).sort((a, b) => a.name.localeCompare(b.name));
-  if (!rows.length) { $('#invTable').innerHTML = `<div class="card empty">${state.products.length ? 'Ningún producto coincide con los filtros.' : 'Aún no hay productos.' + (admin ? ' Crea el primero con “Nuevo producto”.' : '')}</div>`; return; }
+  if (!rows.length) { $('#invTable').innerHTML = `<div class="card empty">${state.products.length ? 'Ningún producto coincide con los filtros.' : 'Aún no hay productos.' + (canEdit ? ' Crea el primero con “Nuevo producto”.' : '')}</div>`; return; }
   const units = rows.reduce((a, p) => a + totalStock(p), 0);
   $('#invTable').innerHTML = `<div class="tablewrap"><table>
-    <thead><tr><th>SKU</th><th>Producto</th><th>Tallas (stock)</th><th class="right">Total</th><th class="right">Precio</th><th>Estado</th>${admin ? '<th></th>' : ''}</tr></thead>
+    <thead><tr><th>SKU</th><th>Producto</th><th>Tallas (stock)</th><th class="right">Total</th><th class="right">Precio</th><th>Estado</th>${canEdit || canStock ? '<th></th>' : ''}</tr></thead>
     <tbody>${rows.map(p => {
       const st = stockStatus(p), sz = sortSizes(Object.keys(p.stock).filter(s => p.stock[s] > 0));
       const img = p.image ? `<button class="thumb-btn" data-action="viewImage" data-id="${p.id}" aria-label="Ampliar foto de ${esc(p.name)}">${thumb(p, 'md')}</button>` : thumb(p, 'md');
       return `<tr><td class="num">${esc(p.sku)}</td>
-        <td><div class="prod">${img}<div><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.brand)} · ${esc(p.category)} · ${esc(p.gender)}${p.color ? ' · ' + esc(p.color) : ''}</div></div></div></td>
+        <td><div class="prod">${img}<div><div class="name">${esc(p.name)}</div><div class="meta">${[p.brand, p.category, p.gender, p.color].filter(Boolean).map(esc).join(' · ')}</div></div></div></td>
         <td><div class="chips">${sz.length ? sz.map(s => `<span class="chip">${esc(s)}<b> ×${p.stock[s]}</b></span>`).join('') : '<span class="muted">—</span>'}</div></td>
-        <td class="num right"><b>${totalStock(p)}</b></td><td class="num right"><b>${money(p.price)}</b>${admin ? `<div class="meta">Costo ${money(p.cost)}</div>` : ''}</td>
+        <td class="num right"><b>${totalStock(p)}</b></td><td class="num right"><b>${money(p.price)}</b>${showCost ? `<div class="meta">Costo ${money(p.cost)}</div>` : ''}</td>
         <td><span class="badge ${st.cls}">${st.label}</span></td>
-        ${admin ? `<td><div class="acts"><button class="btn sm" data-action="addStock" data-id="${p.id}">+ Stock</button><button class="btn sm" data-action="editProduct" data-id="${p.id}">Editar</button><button class="btn sm danger" data-action="deleteProduct" data-id="${p.id}">Eliminar</button></div></td>` : ''}</tr>`;
+        ${canEdit || canStock ? `<td><div class="acts">${canStock ? `<button class="btn sm" data-action="addStock" data-id="${p.id}">+ Stock</button>` : ''}${canEdit ? `<button class="btn sm" data-action="editProduct" data-id="${p.id}">Editar</button><button class="btn sm danger" data-action="deleteProduct" data-id="${p.id}">Eliminar</button>` : ''}</div></td>` : ''}</tr>`;
     }).join('')}</tbody></table></div>
     <p class="muted">${rows.length} modelos · ${units} pares</p>`;
 }
@@ -43,7 +43,7 @@ function drawInv() {
 function viewImage(id) {
   const p = getProduct(id); if (!p || !p.image) return;
   openModal(`<img class="big-photo" src="${esc(p.image)}" alt="${esc(p.name)}">
-    <div class="photo-cap"><b>${esc(p.name)}</b><span class="muted"> · ${esc(p.brand)} · ${esc(p.sku)}</span></div>
+    <div class="photo-cap"><b>${esc(p.name)}</b><span class="muted"> · ${[p.brand, p.sku].filter(Boolean).map(esc).join(' · ')}</span></div>
     <div class="foot"><button class="btn" data-action="closeModal">Cerrar</button></div>`);
 }
 
@@ -66,8 +66,8 @@ function productForm(id) {
     <div class="form-grid">
       <label class="f">SKU<input name="sku" required value="${esc(p.sku)}"></label>
       <label class="f">Nombre / modelo<input name="pname" required value="${esc(p.name)}" placeholder="Ej. Air Max 90"></label>
-      <label class="f">Marca<input name="brand" list="dlBrand" required value="${esc(p.brand)}"></label>
-      <label class="f">Categoría<input name="category" list="dlCat" required value="${esc(p.category)}"></label>
+      <label class="f">Marca<input name="brand" list="dlBrand" value="${esc(p.brand)}"></label>
+      <label class="f">Categoría<input name="category" list="dlCat" value="${esc(p.category)}"></label>
       <label class="f">Género<select name="gender">${options(['Hombre', 'Mujer', 'Unisex', 'Niño', 'Niña'], p.gender)}</select></label>
       <label class="f">Color<input name="color" value="${esc(p.color)}"></label>
       <label class="f">Costo (USD)<input name="cost" type="number" min="0" step="0.01" required value="${esc(p.cost)}"></label>

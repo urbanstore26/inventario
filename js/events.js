@@ -15,6 +15,7 @@ document.addEventListener('submit', e => {
     else if (f.dataset.form === 'user-new') await saveUserNew(f);
     else if (f.dataset.form === 'user-edit') await saveUserEdit(f);
     else if (f.dataset.form === 'user-pass') await saveUserPassword(f);
+    else if (f.dataset.form === 'role') await saveRole(f);
     else if (f.dataset.form === 'settings') {
       const sizes = sortSizes([...new Set(f.elements.sizes.value.split(',').map(s => s.trim()).filter(Boolean))]);
       if (!sizes.length) throw new Error('Indica al menos una talla');

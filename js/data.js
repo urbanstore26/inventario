@@ -14,10 +14,28 @@ const MOVE_TYPES = {
 let state = blank();      // lo llena el store activo (local o Supabase) al iniciar sesión
 let store = null;         // LocalStore | SupabaseStore
 let appReady = false;
-const isAdmin = () => !!store && !!store.user && store.user.role === 'admin';
+const isAdmin = () => !!store && !!store.user && store.user.role === 'admin';   // el rol Administrador (siempre tiene todo)
+
+/* Catálogo de permisos (mismas claves que la tabla public.permissions). En Supabase se lee de la base de datos. */
+const PERMISSION_CATALOG = [
+  {key: 'dashboard.view',  label: 'Ver el panel',                         description: 'Indicadores de ventas e inventario'},
+  {key: 'inventory.view',  label: 'Ver inventario y stock',               description: 'Consultar productos, fotos y stock por talla'},
+  {key: 'sales.create',    label: 'Registrar ventas e imprimir tickets',  description: 'Usar el punto de venta'},
+  {key: 'sales.view',      label: 'Ver el historial de ventas',           description: 'Consultar ventas y reimprimir tickets'},
+  {key: 'costs.view',      label: 'Ver costos y utilidades',              description: 'Costo de los productos y ganancias (solo en pantalla)'},
+  {key: 'products.manage', label: 'Crear y editar productos',             description: 'Incluye precios, fotos y eliminar'},
+  {key: 'stock.adjust',    label: 'Entradas, salidas y ajustes de stock', description: 'Movimientos de inventario y su historial'},
+  {key: 'sales.void',      label: 'Anular ventas',                        description: 'Devuelve los pares al inventario'},
+  {key: 'reports.export',  label: 'Exportar reportes',                    description: 'Descargar el inventario y las ventas en CSV'},
+  {key: 'settings.manage', label: 'Ajustes de la tienda',                 description: 'Nombre, tallas y alertas de stock'},
+  {key: 'users.manage',    label: 'Gestionar usuarios',                   description: 'Crear cuentas, cambiar contraseñas, activar o desactivar'}
+];
+/* ¿La sesión actual tiene este permiso? (el rol Administrador los tiene todos) */
+const can = key => !!store && !!store.user && (store.user.role === 'admin' || (store.user.permissions || []).includes(key));
+const roleName = id => (state.roles.find(r => r.id === id) || {}).name || id;
 
 function blank() {
-  return {products: [], movements: [], sales: [], users: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
+  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
 }
 
 const totalStock = p => Object.values(p.stock).reduce((a, q) => a + (q || 0), 0);

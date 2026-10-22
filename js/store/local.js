@@ -25,29 +25,70 @@ function moveStock(p, size, delta, type, note, ref) {
   const cur = p.stock[size] || 0, nv = cur + delta;
   if (nv < 0) throw new Error(`Stock insuficiente: ${p.name} talla ${size} (disponible ${cur})`);
   p.stock[size] = nv;
+  if (type === 'inicial') { p.initial = p.initial || {}; p.initial[size] = (p.initial[size] || 0) + delta; }
   state.movements.unshift({id: uid(), date: new Date().toISOString(), productId: p.id, sku: p.sku, name: p.name, size, type, qty: delta, balance: nv, note: note || '', ref: ref || ''});
   if (state.movements.length > 5000) state.movements.length = 5000;
 }
+
+/* Datos guardados antes de existir el stock inicial: se reconstruye desde los movimientos 'inicial' */
+function ensureInitial() {
+  state.products.forEach(p => {
+    if (p.initial) return;
+    p.initial = {};
+    state.movements.filter(m => m.productId === p.id && m.type === 'inicial').forEach(m => { p.initial[m.size] = (p.initial[m.size] || 0) + m.qty; });
+  });
+}
+
+const demoRoles = () => [
+  {id: 'admin', name: 'Administrador', description: 'Acceso total al sistema', isSystem: true, permissions: PERMISSION_CATALOG.map(p => p.key)},
+  {id: 'vendedor', name: 'Vendedor', description: 'Ve el stock, vende e imprime tickets', isSystem: true, permissions: ['inventory.view', 'sales.create', 'sales.view']}
+];
+/* El rol Administrador siempre tiene todos los permisos; los datos antiguos sin roles reciben los del sistema */
+function ensureRoles() {
+  if (!Array.isArray(state.roles) || !state.roles.length) state.roles = demoRoles();
+  state.roles.forEach(r => { if (r.id === 'admin') r.permissions = PERMISSION_CATALOG.map(p => p.key); });
+  state.permissions = PERMISSION_CATALOG;
+}
+/* Roles disponibles para entrar a la demostración (antes de cargar los datos) */
+function demoRoleList() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_KEY));
+    if (s && Array.isArray(s.roles) && s.roles.length) return s.roles.map(r => ({id: r.id, name: r.name}));
+  } catch (e) { /* sin datos guardados */ }
+  return demoRoles().map(r => ({id: r.id, name: r.name}));
+}
+const slugify = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'rol';
 
 const demoUsers = () => [
   {id: 'demo-admin', name: 'Administrador demo', email: 'admin@plante.demo', role: 'admin', active: true, createdAt: new Date().toISOString()},
   {id: 'demo-vendedor', name: 'Vendedor demo', email: 'vendedor@plante.demo', role: 'vendedor', active: true, createdAt: new Date().toISOString()}
 ];
-function ensureUsers() { if (!Array.isArray(state.users) || !state.users.length) state.users = demoUsers(); }
+function ensureUsers() {
+  if (!Array.isArray(state.users) || !state.users.length) state.users = demoUsers();
+  state.users.forEach(u => { if (!state.roles.some(r => r.id === u.role)) u.role = 'vendedor'; });
+}
 
 const LocalStore = {
   mode: 'local',
   imageMax: 640,   // más pequeño: localStorage tiene ~5 MB
-  user: {id: 'demo-admin', name: 'Administrador demo', email: 'admin@plante.demo', role: 'admin'},
-  _setUser(role) {
-    const id = 'demo-' + role, u = state.users.find(x => x.id === id) || demoUsers().find(x => x.id === id);
-    this.user = {id: u.id, name: u.name, email: u.email, role: u.role};
+  user: {id: 'demo-admin', name: 'Administrador demo', email: 'admin@plante.demo', role: 'admin', roleName: 'Administrador', permissions: []},
+
+  /* Entra como el rol elegido: usa la cuenta demo de ese rol, otra cuenta activa con ese rol, o una ficticia */
+  _setUser(roleId) {
+    const role = state.roles.find(r => r.id === roleId) || state.roles.find(r => r.id === 'admin');
+    const u = state.users.find(x => x.id === 'demo-' + role.id) || state.users.find(x => x.role === role.id && x.active)
+      || {id: 'demo-' + role.id, name: role.name + ' demo', email: role.id + '@plante.demo'};
+    this.user = {id: u.id, name: u.name, email: u.email, role: role.id, roleName: role.name, permissions: role.permissions.slice()};
   },
 
-  async session() { const v = sessionStorage.getItem(LS_DEMO); return v === 'admin' || v === 'vendedor' || v === '1'; },
-  async signIn(role) { sessionStorage.setItem(LS_DEMO, role === 'vendedor' ? 'vendedor' : 'admin'); },   // en demostración se elige el rol para probarlo
+  async session() { return !!sessionStorage.getItem(LS_DEMO); },
+  async signIn(roleId) { sessionStorage.setItem(LS_DEMO, roleId || 'admin'); },   // en demostración se elige el rol para probarlo
   async signOut() { sessionStorage.removeItem(LS_DEMO); },
-  async init() { state = loadLocal(); ensureUsers(); this._setUser(sessionStorage.getItem(LS_DEMO) === 'vendedor' ? 'vendedor' : 'admin'); },
+  async init() {
+    state = loadLocal(); ensureRoles(); ensureUsers(); ensureInitial();
+    const v = sessionStorage.getItem(LS_DEMO);
+    this._setUser(v && v !== '1' ? v : 'admin');
+  },
   async reload() {},
 
   async saveProduct({id, data, stock, image}) {
@@ -115,42 +156,115 @@ const LocalStore = {
   },
 
 
-  /* ---- Usuarios (modo demostración: la lista vive en este navegador; no hay contraseñas reales) ---- */
+  /* Reporte por talla con las columnas de la hoja de Excel (misma forma que la vista inventory_variants) */
+  async variantReport() {
+    const r2 = n => Math.round(n * 100) / 100, sold = {};
+    state.sales.filter(s => s.status === 'completada').forEach(s => s.items.forEach(i => { const k = i.pid + '|' + i.size; sold[k] = (sold[k] || 0) + i.qty; }));
+    const rows = [];
+    state.products.forEach(p => Object.keys(p.stock).forEach(size => {
+      const stock = p.stock[size] || 0, status = stock === 0 ? 'Agotado' : stock <= minOf(p) ? 'Stock bajo' : 'Disponible';
+      rows.push({sku: p.sku, model: p.name, color: p.color || '', size, cost: p.cost, price: p.price, initial: (p.initial || {})[size] || 0, sold: sold[p.id + '|' + size] || 0,
+        stock, unitProfit: r2(p.price - p.cost), inventoryValue: r2(stock * p.cost), retailValue: r2(stock * p.price), status});
+    }));
+    return rows;
+  },
+
+  /* ---- Usuarios y roles (modo demostración: viven en este navegador; reglas iguales a las de la base de datos) ---- */
+  _admins(exceptId) { return state.users.filter(x => x.id !== exceptId && x.role === 'admin' && x.active).length; },
+  _onlyAdminMayTouchAdmins(...roles) {
+    if (roles.includes('admin') && this.user.role !== 'admin') throw new Error('Solo un administrador puede asignar o modificar el rol Administrador');
+  },
+
   async createUser({name, email, password, role}) {
     if (!String(name).trim()) throw new Error('El nombre es obligatorio');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Correo no válido');
     if (String(password).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
+    if (!state.roles.some(r => r.id === role)) throw new Error('Rol no válido');
+    this._onlyAdminMayTouchAdmins(role);
     if (state.users.some(u => u.email.toLowerCase() === String(email).toLowerCase())) throw new Error('Ya existe un usuario con ese correo');
-    state.users.push({id: uid(), name: String(name).trim(), email, role: role === 'admin' ? 'admin' : 'vendedor', active: true, createdAt: new Date().toISOString()});
+    state.users.push({id: uid(), name: String(name).trim(), email, role, active: true, createdAt: new Date().toISOString()});
     saveLocal();   // la contraseña no se guarda: en demostración no se inicia sesión con cuentas
   },
 
   async updateUser(id, {name, role, active}) {
     const u = state.users.find(x => x.id === id);
     if (!u) throw new Error('El usuario ya no existe');
-    const others = state.users.filter(x => x.id !== id && x.role === 'admin' && x.active).length;
-    if (u.role === 'admin' && u.active && (role !== 'admin' || !active) && others === 0) throw new Error('Debe quedar al menos un administrador activo');
+    if (!state.roles.some(r => r.id === role)) throw new Error('Rol no válido');
+    if (role !== u.role || active !== u.active) {
+      if (id === this.user.id) throw new Error('No puedes cambiar tu propio rol ni desactivarte');
+      this._onlyAdminMayTouchAdmins(u.role, role);
+      if (u.role === 'admin' && u.active && (role !== 'admin' || !active) && this._admins(id) === 0) throw new Error('Debe quedar al menos un administrador activo');
+    }
     Object.assign(u, {name, role, active});
     saveLocal();
     if (u.id === this.user.id) this.user = {...this.user, name: u.name};
   },
 
   async setUserPassword(id, password) {
+    const u = state.users.find(x => x.id === id);
+    if (!u) throw new Error('El usuario ya no existe');
     if (String(password).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
-    if (!state.users.some(u => u.id === id)) throw new Error('El usuario ya no existe');
+    this._onlyAdminMayTouchAdmins(u.role);
   },
 
   async deleteUser(id) {
     const u = state.users.find(x => x.id === id);
     if (!u) throw new Error('El usuario ya no existe');
     if (id === this.user.id) throw new Error('No puedes eliminar tu propia cuenta');
-    if (u.role === 'admin' && u.active && !state.users.some(x => x.id !== id && x.role === 'admin' && x.active)) throw new Error('No se puede eliminar al último administrador activo');
+    this._onlyAdminMayTouchAdmins(u.role);
+    if (u.role === 'admin' && u.active && this._admins(id) === 0) throw new Error('No se puede eliminar al último administrador activo');
     state.users = state.users.filter(x => x.id !== id);
     saveLocal();
   },
 
-  /* Solo existen en modo local */
-  async resetDemo() { const users = state.users; state = blank(); seed(state); state.users = users; saveLocal(); },
-  async clearAll() { const keep = state.settings, users = state.users; state = blank(); state.settings = {...keep, nextSale: 1}; state.users = users; saveLocal(); },
-  async restore(d) { const users = state.users; state = {...blank(), ...d, settings: {...blank().settings, ...(d.settings || {})}}; if (!Array.isArray(d.users) || !d.users.length) state.users = users; ensureUsers(); saveLocal(); }
+  _needAdminRole() { if (this.user.role !== 'admin') throw new Error('Solo un administrador puede gestionar roles'); },
+  _checkRole({name, description, permissions}, exceptId) {
+    const n = String(name || '').trim();
+    if (n.length < 2 || n.length > 40) throw new Error('El nombre del rol debe tener entre 2 y 40 caracteres');
+    if (state.roles.some(r => r.id !== exceptId && r.name.trim().toLowerCase() === n.toLowerCase())) throw new Error('Ya existe un rol con ese nombre');
+    const perms = [...new Set(permissions || [])];
+    if (perms.some(k => !PERMISSION_CATALOG.some(p => p.key === k))) throw new Error('Hay un permiso no válido');
+    return {name: n, description: String(description || '').slice(0, 200), permissions: perms};
+  },
+
+  async createRole(data) {
+    this._needAdminRole();
+    const r = this._checkRole(data), base = slugify(r.name);
+    let id = base, n = 1;
+    while (state.roles.some(x => x.id === id)) id = base + '_' + (++n);
+    state.roles.push({id, ...r, isSystem: false});
+    saveLocal();
+    return id;
+  },
+
+  async updateRole(id, data) {
+    this._needAdminRole();
+    if (id === 'admin') throw new Error('El rol Administrador no se puede modificar');
+    const role = state.roles.find(r => r.id === id);
+    if (!role) throw new Error('El rol no existe');
+    Object.assign(role, this._checkRole(data, id));
+    saveLocal();
+  },
+
+  async deleteRole(id) {
+    this._needAdminRole();
+    const role = state.roles.find(r => r.id === id);
+    if (!role) throw new Error('El rol no existe');
+    if (role.isSystem) throw new Error('Los roles del sistema no se pueden eliminar');
+    const n = state.users.filter(u => u.role === id).length;
+    if (n) throw new Error(`Hay ${n} usuario(s) con este rol; cámbialos de rol antes de eliminarlo`);
+    state.roles = state.roles.filter(r => r.id !== id);
+    saveLocal();
+  },
+
+  /* Solo existen en modo local (los usuarios y roles se conservan al reiniciar los datos) */
+  async resetDemo() { const {users, roles} = state; state = blank(); seed(state); Object.assign(state, {users, roles}); ensureRoles(); saveLocal(); },
+  async clearAll() { const {settings, users, roles} = state; state = blank(); Object.assign(state, {settings: {...settings, nextSale: 1}, users, roles}); ensureRoles(); saveLocal(); },
+  async restore(d) {
+    const {users, roles} = state;
+    state = {...blank(), ...d, settings: {...blank().settings, ...(d.settings || {})}};
+    if (!Array.isArray(d.users) || !d.users.length) state.users = users;
+    if (!Array.isArray(d.roles) || !d.roles.length) state.roles = roles;
+    ensureRoles(); ensureUsers(); ensureInitial(); saveLocal();
+  }
 };
