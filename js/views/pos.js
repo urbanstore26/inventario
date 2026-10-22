@@ -42,7 +42,7 @@ function drawCart() {
   $('#posCart').innerHTML = pos.cart.length ? `
     ${pos.cart.map((i, n) => `<div class="line"><div class="prod">${thumb(getProduct(i.pid) || {name: i.name}, 'sm')}<div><b>${esc(i.name)}</b><div class="meta muted">Talla ${esc(i.size)} · ${i.offer ? `<s class="price-old">${money(i.listPrice)}</s> ` : ''}${money(i.price)}${i.offer ? ` · <span class="offer-name">${esc(i.offer)}</span>` : ''}</div></div></div>
       <div class="qty"><button data-action="posDec" data-i="${n}" aria-label="Menos">−</button><span class="num">${i.qty}</span><button data-action="posInc" data-i="${n}" aria-label="Más">+</button></div>
-      <div class="num right" style="min-width:70px"><b>${money(i.price * i.qty)}</b> <button class="btn sm danger" data-action="posRm" data-i="${n}" aria-label="Quitar">✕</button></div></div>`).join('')}
+      <div class="num right" style="min-width:70px"><b>${money(i.price * i.qty)}</b> <button class="btn sm danger" data-action="posRm" data-i="${n}" aria-label="Quitar">Quitar</button></div></div>`).join('')}
     <div class="totals">
       <div class="r"><span class="muted">Subtotal</span><span class="num" id="tSub">${money(t.sub)}</span></div>
       ${t.savings > 0.004 ? `<div class="r"><span class="muted">Ahorro por ofertas</span><span class="num">-${money(t.savings)}</span></div>` : ''}
