@@ -7,15 +7,16 @@ const VIEWS = {
   pos:       {title: 'Punto de venta', render: renderPOS},
   movements: {title: 'Movimientos de stock', render: renderMovements},
   sales:     {title: 'Ventas', render: renderSales},
+  discounts: {title: 'Descuentos', render: renderDiscounts},
   users:     {title: 'Usuarios', render: renderUsers},
   settings:  {title: 'Ajustes', render: renderSettings}
 };
-const NAV_LABELS = {dashboard: 'Panel', inventory: 'Inventario', pos: 'Vender', movements: 'Movimientos', sales: 'Ventas', users: 'Usuarios', settings: 'Ajustes'};
+const NAV_LABELS = {dashboard: 'Panel', inventory: 'Inventario', pos: 'Vender', movements: 'Movimientos', sales: 'Ventas', discounts: 'Descuentos', users: 'Usuarios', settings: 'Ajustes'};
 
 /* Permiso que da acceso a cada pantalla (los permisos se leen de la tabla de roles) */
-const VIEW_PERMISSION = {dashboard: 'dashboard.view', inventory: 'inventory.view', pos: 'sales.create', movements: 'stock.adjust', sales: 'sales.view', users: 'users.manage', settings: 'settings.manage'};
+const VIEW_PERMISSION = {dashboard: 'dashboard.view', inventory: 'inventory.view', pos: 'sales.create', movements: 'stock.adjust', sales: 'sales.view', discounts: 'discounts.manage', users: 'users.manage', settings: 'settings.manage'};
 /* Pantalla de inicio: la primera de esta lista a la que tenga acceso */
-const LANDING_ORDER = ['dashboard', 'pos', 'inventory', 'sales', 'movements', 'users', 'settings'];
+const LANDING_ORDER = ['dashboard', 'pos', 'inventory', 'sales', 'discounts', 'movements', 'users', 'settings'];
 
 function route(opts) {
   if (!appReady) return;

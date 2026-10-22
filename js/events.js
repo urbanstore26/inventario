@@ -16,6 +16,7 @@ document.addEventListener('submit', e => {
     else if (f.dataset.form === 'user-edit') await saveUserEdit(f);
     else if (f.dataset.form === 'user-pass') await saveUserPassword(f);
     else if (f.dataset.form === 'role') await saveRole(f);
+    else if (f.dataset.form === 'discount') await saveDiscountForm(f);
     else if (f.dataset.form === 'settings') {
       const sizes = sortSizes([...new Set(f.elements.sizes.value.split(',').map(s => s.trim()).filter(Boolean))]);
       if (!sizes.length) throw new Error('Indica al menos una talla');
@@ -26,10 +27,13 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.form && t.form.dataset.form === 'discount' && (t.name === 'dkind' || t.name === 'dvalue')) drawPick();   // vista previa de precios
   switch (t.id) {
     case 'invQ': ui.inv.q = t.value; drawInv(); break;
     case 'movQ': ui.mov.q = t.value; drawMov(); break;
     case 'usrQ': ui.usr.q = t.value; drawUsers(); break;
+    case 'dscQ': ui.dsc.q = t.value; drawDiscounts(); break;
+    case 'pickQ': drawPick(); break;
     case 'posQ': pos.q = t.value; drawPosResults(); break;
     case 'posDisc': pos.discount = t.value; updatePosTotals(); break;
     case 'posPaid': pos.paid = t.value; updatePosTotals(); break;
@@ -42,6 +46,8 @@ document.addEventListener('change', e => {
   if (map[t.id]) { ui[map[t.id][0]][map[t.id][1]] = t.value; ({inv: drawInv, mov: drawMov, sal: drawSales})[map[t.id][0]](); }
   else if (t.id === 'mvProduct') { ui.mov.pid = t.value; fillMoveSizes(); }
   else if (t.id === 'posMethod') { pos.method = t.value; drawCart(); }
+  else if (t.dataset && t.dataset.pick) pickToggle(t.dataset.pick, t.checked);
+  else if (t.id === 'pickCat') drawPick();
   else if (t.id === 'tkWidth') setTicketWidth(t.value);
   else if (t.id === 'pImage') run(null, () => pickProductImage(t));
   else if (t.id === 'restoreFile' && t.files[0]) {

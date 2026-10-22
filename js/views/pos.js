@@ -21,12 +21,12 @@ function drawPosResults() {
   const list = state.products.filter(p => totalStock(p) > 0 && (!q || `${p.sku} ${p.name} ${p.brand} ${p.color}`.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 6);
   $('#posResults').innerHTML = list.length ? list.map(p => `<button class="res${pos.sel === p.id ? ' sel' : ''}" data-action="posPick" data-id="${p.id}">
     <span class="prod">${thumb(p, 'sm')}<span><b>${esc(p.name)}</b><br><span class="meta muted">${[p.brand, p.sku, p.color].filter(Boolean).map(esc).join(' · ')}</span></span></span>
-    <span class="right"><b class="num">${money(p.price)}</b><br><span class="meta muted">${totalStock(p)} pares</span></span></button>`).join('') : '<div class="empty">Sin resultados con stock</div>';
+    <span class="right">${priceHtml(p)} ${offerBadge(p)}<br><span class="meta muted">${totalStock(p)} pares</span></span></button>`).join('') : '<div class="empty">Sin resultados con stock</div>';
 }
 function drawPosSizes() {
   const p = getProduct(pos.sel);
   if (!p) { $('#posSizes').innerHTML = ''; return; }
-  $('#posSizes').innerHTML = `<h3 style="margin-top:16px">${esc(p.name)} · elige la talla</h3>
+  $('#posSizes').innerHTML = `<h3 style="margin-top:16px">${esc(p.name)} · ${priceHtml(p)} · elige la talla</h3>
     <div class="sizes">${sizesFor(p).filter(s => p.stock[s] > 0).map(s => {
       const inCart = (pos.cart.find(i => i.pid === p.id && i.size === s) || {}).qty || 0, left = p.stock[s] - inCart;
       return `<button class="size num" data-action="posAdd" data-size="${esc(s)}" ${left <= 0 ? 'disabled' : ''}>${esc(s)}<small>${left} disp.</small></button>`;
@@ -34,16 +34,18 @@ function drawPosSizes() {
 }
 const cartTotals = () => {
   const sub = pos.cart.reduce((a, i) => a + i.price * i.qty, 0), disc = Math.min(Math.max(Number(pos.discount) || 0, 0), sub), total = sub - disc;
-  return {sub, disc, total, paid: Number(pos.paid) || 0};
+  const savings = pos.cart.reduce((a, i) => a + ((i.listPrice ?? i.price) - i.price) * i.qty, 0);   // ahorro por ofertas
+  return {sub, disc, total, savings, paid: Number(pos.paid) || 0};
 };
 function drawCart() {
   const t = cartTotals();
   $('#posCart').innerHTML = pos.cart.length ? `
-    ${pos.cart.map((i, n) => `<div class="line"><div class="prod">${thumb(getProduct(i.pid) || {name: i.name}, 'sm')}<div><b>${esc(i.name)}</b><div class="meta muted">Talla ${esc(i.size)} · ${money(i.price)}</div></div></div>
+    ${pos.cart.map((i, n) => `<div class="line"><div class="prod">${thumb(getProduct(i.pid) || {name: i.name}, 'sm')}<div><b>${esc(i.name)}</b><div class="meta muted">Talla ${esc(i.size)} · ${i.offer ? `<s class="price-old">${money(i.listPrice)}</s> ` : ''}${money(i.price)}${i.offer ? ` · <span class="offer-name">${esc(i.offer)}</span>` : ''}</div></div></div>
       <div class="qty"><button data-action="posDec" data-i="${n}" aria-label="Menos">−</button><span class="num">${i.qty}</span><button data-action="posInc" data-i="${n}" aria-label="Más">+</button></div>
       <div class="num right" style="min-width:70px"><b>${money(i.price * i.qty)}</b> <button class="btn sm danger" data-action="posRm" data-i="${n}" aria-label="Quitar">✕</button></div></div>`).join('')}
     <div class="totals">
       <div class="r"><span class="muted">Subtotal</span><span class="num" id="tSub">${money(t.sub)}</span></div>
+      ${t.savings > 0.004 ? `<div class="r"><span class="muted">Ahorro por ofertas</span><span class="num">-${money(t.savings)}</span></div>` : ''}
       <div class="r"><span class="muted">Descuento ($)</span><input id="posDisc" type="number" min="0" step="0.01" value="${esc(pos.discount)}" placeholder="0.00"></div>
       <div class="r grand"><span>Total</span><span class="num" id="tTotal">${money(t.total)}</span></div>
     </div>
@@ -87,15 +89,17 @@ const ticketMm = () => { try { return localStorage.getItem('pu_ticket_mm') === '
 
 function receiptHTML(s) {
   const name = state.settings.storeName, units = s.items.reduce((a, i) => a + i.qty, 0);
+  const saved = s.items.reduce((a, i) => a + ((i.listPrice ?? i.price) - i.price) * i.qty, 0);   // ahorro por ofertas
   const row = (l, r, cls = '') => `<div class="tk-row ${cls}"><span>${l}</span><span>${r}</span></div>`;
   return `<div class="ticket" data-w="${ticketMm()}">
     <img class="tk-logo" src="assets/logo-wordmark.png" alt="${esc(name)}">
     <div class="tk-store">${esc(name.toUpperCase())}</div>
     <div class="tk-center">Comprobante V-${pad(s.num, 4)}<br>${fmtDate(s.date)}${s.status === 'anulada' ? '<br><b>*** ANULADA ***</b>' : ''}</div>
     <div class="tk-sep"></div>
-    ${s.items.map(i => `<div class="tk-item"><div>${esc(i.name)}</div>${row(`${i.qty} × ${money(i.price)} · T${esc(i.size)}`, money(i.qty * i.price))}</div>`).join('')}
+    ${s.items.map(i => `<div class="tk-item"><div>${esc(i.name)}</div>${row(`${i.qty} × ${money(i.price)} · T${esc(i.size)}`, money(i.qty * i.price))}${(i.listPrice ?? i.price) > i.price ? `<div class="tk-small tk-off">Antes ${money(i.listPrice)}${i.discountName ? ' · ' + esc(i.discountName) : ''}</div>` : ''}</div>`).join('')}
     <div class="tk-sep"></div>
     ${row('Artículos', units)}
+    ${saved > 0.004 ? row('Ahorro en ofertas', money(saved)) : ''}
     ${row('Subtotal', money(s.subtotal))}
     ${s.discount ? row('Descuento', '-' + money(s.discount)) : ''}
     ${row('TOTAL', money(s.total), 'tk-total')}

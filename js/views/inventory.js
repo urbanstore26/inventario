@@ -33,7 +33,7 @@ function drawInv() {
       return `<tr><td class="num">${esc(p.sku)}</td>
         <td><div class="prod">${img}<div><div class="name">${esc(p.name)}</div><div class="meta">${[p.brand, p.category, p.gender, p.color].filter(Boolean).map(esc).join(' · ')}</div></div></div></td>
         <td><div class="chips">${sz.length ? sz.map(s => `<span class="chip">${esc(s)}<b> ×${p.stock[s]}</b></span>`).join('') : '<span class="muted">—</span>'}</div></td>
-        <td class="num right"><b>${totalStock(p)}</b></td><td class="num right"><b>${money(p.price)}</b>${showCost ? `<div class="meta">Costo ${money(p.cost)}</div>` : ''}</td>
+        <td class="num right"><b>${totalStock(p)}</b></td><td class="num right">${priceHtml(p)}${offerBadge(p) ? '<div class="meta">' + offerBadge(p) + '</div>' : ''}${showCost ? `<div class="meta">Costo ${money(p.cost)}</div>` : ''}</td>
         <td><span class="badge ${st.cls}">${st.label}</span></td>
         ${canEdit || canStock ? `<td><div class="acts">${canStock ? `<button class="btn sm" data-action="addStock" data-id="${p.id}">+ Stock</button>` : ''}${canEdit ? `<button class="btn sm" data-action="editProduct" data-id="${p.id}">Editar</button><button class="btn sm danger" data-action="deleteProduct" data-id="${p.id}">Eliminar</button>` : ''}</div></td>` : ''}</tr>`;
     }).join('')}</tbody></table></div>

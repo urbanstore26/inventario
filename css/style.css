@@ -366,3 +366,19 @@ code{font-family:var(--font-mono);font-size:12px;background:var(--taupe);padding
 .perm-item input{width:16px;height:16px;padding:0;margin-top:3px;accent-color:var(--pink);flex:none}
 .perm-item span{display:grid;gap:1px}
 .perm-item small{color:var(--smoke);font-size:12px}
+
+/* ---------- descuentos ---------- */
+.price-old{color:var(--smoke);text-decoration:line-through;font-weight:400;font-size:.9em}
+.offer{margin-left:2px}
+.offer-name{color:var(--ink);font-weight:500}
+.thumb-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pick-head{display:flex;justify-content:space-between;align-items:baseline;margin:20px 0 8px}
+.pick-head h3{margin:0}
+.pick-list{display:grid;gap:2px;max-height:300px;overflow:auto;border:1px solid var(--stone);border-radius:var(--r-small);padding:4px;background:var(--eggshell)}
+.pick-item{display:flex;align-items:center;gap:12px;padding:7px 10px;border-radius:8px;cursor:pointer}
+.pick-item:hover{background:var(--taupe)}
+.pick-item input{width:16px;height:16px;padding:0;accent-color:var(--pink);flex:none}
+.pick-item .prod{flex:1}
+.pick-price{text-align:right;white-space:nowrap}
+.meta.warn{color:var(--pink);font-weight:500}
+.tk-off{margin:-2px 0 3px;opacity:.8}

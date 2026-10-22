@@ -75,7 +75,7 @@ const SupabaseStore = {
 
   async reload() {
     const c = this.client;
-    const [settings, products, sales, movements, profiles, roles, permissions, rolePerms] = await Promise.all([
+    const [settings, products, sales, movements, profiles, roles, permissions, rolePerms, discounts, discountProducts] = await Promise.all([
       c.from('store_settings').select('*').eq('id', 1).single(),
       c.from('products').select('*, product_stock(size, qty)').order('name'),
       c.from('sales').select('*, sale_items(*)').order('created_at', {ascending: false}).limit(500),
@@ -83,11 +83,14 @@ const SupabaseStore = {
       c.from('profiles').select('id, full_name, email, role, active, created_at').order('created_at'),
       c.from('roles').select('id, name, description, is_system').order('created_at'),
       c.from('permissions').select('key, label, description').order('sort'),
-      c.from('role_permissions').select('role_id, permission')
+      c.from('role_permissions').select('role_id, permission'),
+      c.from('discounts').select('*').order('created_at'),
+      c.from('discount_products').select('discount_id, product_id')
     ]);
-    const rp = must(rolePerms);
+    const rp = must(rolePerms), dp = must(discountProducts);
     const st = must(settings);
     state = {
+      discounts: must(discounts).map(r => ({id: r.id, name: r.name, kind: r.kind, value: Number(r.value), startsOn: r.starts_on, endsOn: r.ends_on, active: r.active, createdAt: r.created_at, productIds: dp.filter(x => x.discount_id === r.id).map(x => x.product_id)})),
       roles: must(roles).map(r => ({id: r.id, name: r.name, description: r.description, isSystem: r.is_system, permissions: rp.filter(x => x.role_id === r.id).map(x => x.permission)})),
       permissions: must(permissions).map(p => ({key: p.key, label: p.label, description: p.description})),
       users: must(profiles).map(r => ({id: r.id, name: r.full_name || r.email || '', email: r.email || '', role: r.role, active: r.active, createdAt: r.created_at})),
@@ -102,7 +105,7 @@ const SupabaseStore = {
         id: r.id, num: r.num, date: r.created_at, customer: r.customer, method: r.method, status: r.status,
         subtotal: Number(r.subtotal), discount: Number(r.discount), total: Number(r.total), cost: Number(r.cost),
         paid: Number(r.paid), change: Number(r.change_amount),
-        items: (r.sale_items || []).map(i => ({pid: i.product_id, sku: i.sku, name: i.name, size: i.size, qty: i.qty, price: Number(i.price), cost: Number(i.cost)}))
+        items: (r.sale_items || []).map(i => ({pid: i.product_id, sku: i.sku, name: i.name, size: i.size, qty: i.qty, price: Number(i.price), listPrice: Number(i.list_price ?? i.price), discountName: i.discount_name || '', cost: Number(i.cost)}))
       })),
       movements: must(movements).map(r => ({
         id: r.id, date: r.created_at, productId: r.product_id, sku: r.sku, name: r.name, size: r.size,
@@ -229,6 +232,17 @@ const SupabaseStore = {
 
   async deleteRole(id) {
     must(await this.client.rpc('delete_role', {p_id: id}));
+    await this.reload();
+  },
+
+  /* ---- Descuentos: se guardan con la función SQL save_discount (atómica); el precio al vender lo calcula el servidor ---- */
+  async saveDiscount({id, name, kind, value, startsOn, endsOn, active, productIds}) {
+    must(await this.client.rpc('save_discount', {p_id: id || null, p_name: name, p_kind: kind, p_value: value, p_starts_on: startsOn || null, p_ends_on: endsOn || null, p_active: active !== false, p_products: productIds}));
+    await this.reload();
+  },
+
+  async deleteDiscount(id) {
+    must(await this.client.from('discounts').delete().eq('id', id));
     await this.reload();
   }
 };

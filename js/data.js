@@ -24,6 +24,7 @@ const PERMISSION_CATALOG = [
   {key: 'sales.view',      label: 'Ver el historial de ventas',           description: 'Consultar ventas y reimprimir tickets'},
   {key: 'costs.view',      label: 'Ver costos y utilidades',              description: 'Costo de los productos y ganancias (solo en pantalla)'},
   {key: 'products.manage', label: 'Crear y editar productos',             description: 'Incluye precios, fotos y eliminar'},
+  {key: 'discounts.manage', label: 'Administrar descuentos',               description: 'Crear promociones y elegir a qué productos aplican'},
   {key: 'stock.adjust',    label: 'Entradas, salidas y ajustes de stock', description: 'Movimientos de inventario y su historial'},
   {key: 'sales.void',      label: 'Anular ventas',                        description: 'Devuelve los pares al inventario'},
   {key: 'reports.export',  label: 'Exportar reportes',                    description: 'Descargar el inventario y las ventas en CSV'},
@@ -35,7 +36,7 @@ const can = key => !!store && !!store.user && (store.user.role === 'admin' || (s
 const roleName = id => (state.roles.find(r => r.id === id) || {}).name || id;
 
 function blank() {
-  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
+  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], discounts: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
 }
 
 const totalStock = p => Object.values(p.stock).reduce((a, q) => a + (q || 0), 0);
@@ -58,4 +59,35 @@ function nextSku() {
   return 'PU-' + pad(max + 1, 4);
 }
 /* Estado de la interfaz (filtros por vista) */
-const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: ''}, sal: {from: '', to: '', method: '', status: ''}, usr: {q: ''}};
+const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: ''}, sal: {from: '', to: '', method: '', status: ''}, usr: {q: ''}, dsc: {q: ''}};
+
+
+/* ---- Descuentos: una oferta aplica a los productos elegidos; si hay varias, gana el precio más bajo ---- */
+const discountLabel = d => d.kind === 'percent' ? '-' + (+d.value) + '%' : '-' + money(d.value);
+/* active | scheduled (aún no empieza) | expired (ya terminó) | paused */
+const discountState = (d, day = dayKey(new Date())) => !d.active ? 'paused' : (d.startsOn && d.startsOn > day) ? 'scheduled' : (d.endsOn && d.endsOn < day) ? 'expired' : 'active';
+/* Cálculo en centavos enteros, con redondeo "mitad hacia arriba", igual que round(…, 2) de la base de datos:
+   así lo que se muestra coincide al centavo con lo que cobra el servidor (p. ej. 50% de 74.99 = 37.50). */
+function discountedPrice(price, d) {
+  const pc = Math.round(price * 100), vc = Math.round(d.value * 100);
+  const cents = d.kind === 'percent' ? Math.floor((pc * (10000 - vc) + 5000) / 10000) : pc - vc;
+  return Math.max(0, cents) / 100;
+}
+/* Precio vigente de un producto: {price, list, name, discount}. Sin oferta, price === list. */
+function priceOf(p) {
+  let best = null;
+  (state.discounts || []).forEach(d => {
+    if (discountState(d) !== 'active' || !d.productIds.includes(p.id)) return;
+    const np = discountedPrice(p.price, d);
+    if (np < p.price && (!best || np < best.price || (np === best.price && d.name < best.name))) best = {price: np, name: d.name, discount: d};
+  });
+  return best ? {price: best.price, list: p.price, name: best.name, discount: best.discount} : {price: p.price, list: p.price, name: '', discount: null};
+}
+function priceHtml(p) {
+  const e = priceOf(p);
+  return e.discount ? `<s class="price-old num">${money(e.list)}</s> <b class="num">${money(e.price)}</b>` : `<b class="num">${money(p.price)}</b>`;
+}
+function offerBadge(p) {
+  const e = priceOf(p);
+  return e.discount ? `<span class="badge b-low offer" title="${esc(e.name)}">${esc(discountLabel(e.discount))}</span>` : '';
+}

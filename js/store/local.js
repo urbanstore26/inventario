@@ -39,6 +39,8 @@ function ensureInitial() {
   });
 }
 
+function ensureDiscounts() { if (!Array.isArray(state.discounts)) state.discounts = []; }
+
 const demoRoles = () => [
   {id: 'admin', name: 'Administrador', description: 'Acceso total al sistema', isSystem: true, permissions: PERMISSION_CATALOG.map(p => p.key)},
   {id: 'vendedor', name: 'Vendedor', description: 'Ve el stock, vende e imprime tickets', isSystem: true, permissions: ['inventory.view', 'sales.create', 'sales.view']}
@@ -85,7 +87,7 @@ const LocalStore = {
   async signIn(roleId) { sessionStorage.setItem(LS_DEMO, roleId || 'admin'); },   // en demostración se elige el rol para probarlo
   async signOut() { sessionStorage.removeItem(LS_DEMO); },
   async init() {
-    state = loadLocal(); ensureRoles(); ensureUsers(); ensureInitial();
+    state = loadLocal(); ensureRoles(); ensureUsers(); ensureInitial(); ensureDiscounts();
     const v = sessionStorage.getItem(LS_DEMO);
     this._setUser(v && v !== '1' ? v : 'admin');
   },
@@ -109,6 +111,7 @@ const LocalStore = {
 
   async deleteProduct(id) {
     state.products = state.products.filter(x => x.id !== id);
+    state.discounts.forEach(d => { d.productIds = d.productIds.filter(pid => pid !== id); });
     saveLocal();
   },
 
@@ -129,7 +132,8 @@ const LocalStore = {
         const p = getProduct(i.pid);
         if (!p) throw new Error('Un producto del carrito ya no existe');
         moveStock(p, i.size, -i.qty, 'venta', 'Venta V-' + pad(num, 4), id);
-        return {pid: p.id, sku: p.sku, name: p.name, size: i.size, qty: i.qty, price: p.price, cost: p.cost};
+        const e = priceOf(p);   // precio con la mejor oferta vigente
+        return {pid: p.id, sku: p.sku, name: p.name, size: i.size, qty: i.qty, price: e.price, listPrice: e.list, discountName: e.name, cost: p.cost};
       });
       const r2 = n => Math.round(n * 100) / 100;     // montos siempre a centavos
       const sub = r2(lines.reduce((a, i) => a + i.price * i.qty, 0)), disc = r2(Math.min(Math.max(Number(discount) || 0, 0), sub)), total = r2(sub - disc);
@@ -217,6 +221,31 @@ const LocalStore = {
     saveLocal();
   },
 
+  /* ---- Descuentos (reglas iguales a las de la función SQL save_discount) ---- */
+  async saveDiscount({id, name, kind, value, startsOn, endsOn, active, productIds}) {
+    if (!can('discounts.manage')) throw new Error('No tienes permiso para esta acción');
+    const n = String(name || '').trim(), v = Number(value);
+    if (n.length < 2 || n.length > 60) throw new Error('El nombre debe tener entre 2 y 60 caracteres');
+    if (!['percent', 'amount'].includes(kind)) throw new Error('Tipo de descuento inválido');
+    if (!(v > 0)) throw new Error('El valor del descuento debe ser mayor a 0');
+    if (kind === 'percent' && v > 100) throw new Error('El porcentaje no puede ser mayor a 100');
+    if (startsOn && endsOn && endsOn < startsOn) throw new Error('La fecha final no puede ser anterior a la inicial');
+    const ids = [...new Set(productIds || [])];
+    if (ids.some(pid => !getProduct(pid))) throw new Error('Hay un producto que ya no existe');
+    const d = id ? state.discounts.find(x => x.id === id) : null;
+    if (id && !d) throw new Error('El descuento no existe');
+    const data = {name: n, kind, value: v, startsOn: startsOn || null, endsOn: endsOn || null, active: active !== false, productIds: ids};
+    if (d) Object.assign(d, data); else state.discounts.push({id: uid(), ...data, createdAt: new Date().toISOString()});
+    saveLocal();
+  },
+
+  async deleteDiscount(id) {
+    if (!can('discounts.manage')) throw new Error('No tienes permiso para esta acción');
+    if (!state.discounts.some(d => d.id === id)) throw new Error('El descuento no existe');
+    state.discounts = state.discounts.filter(d => d.id !== id);
+    saveLocal();
+  },
+
   _needAdminRole() { if (this.user.role !== 'admin') throw new Error('Solo un administrador puede gestionar roles'); },
   _checkRole({name, description, permissions}, exceptId) {
     const n = String(name || '').trim();
@@ -265,6 +294,6 @@ const LocalStore = {
     state = {...blank(), ...d, settings: {...blank().settings, ...(d.settings || {})}};
     if (!Array.isArray(d.users) || !d.users.length) state.users = users;
     if (!Array.isArray(d.roles) || !d.roles.length) state.roles = roles;
-    ensureRoles(); ensureUsers(); ensureInitial(); saveLocal();
+    ensureRoles(); ensureUsers(); ensureInitial(); ensureDiscounts(); saveLocal();
   }
 };

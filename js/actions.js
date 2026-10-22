@@ -25,6 +25,12 @@ const ACTIONS = {
   newRole: () => roleForm(),
   editRole: el => roleForm(el.dataset.id),
   deleteRole: el => removeRole(el.dataset.id),
+  newDiscount: () => discountForm(),
+  editDiscount: el => discountForm(el.dataset.id),
+  toggleDiscount: el => toggleDiscount(el.dataset.id),
+  deleteDiscount: el => removeDiscount(el.dataset.id),
+  pickAll: () => pickSet(true),
+  pickNone: () => pickSet(false),
   genPassword(el) { const i = el.closest('.pw-row').querySelector('input'); i.type = 'text'; i.value = randomPassword(); i.focus(); i.select(); },
   logout: doLogout,
   togglePw(el) {
@@ -44,7 +50,8 @@ const ACTIONS = {
     const p = getProduct(pos.sel), size = el.dataset.size; if (!p) return;
     const it = pos.cart.find(i => i.pid === p.id && i.size === size);
     if ((it ? it.qty : 0) + 1 > (p.stock[size] || 0)) return toast('No hay más stock de esa talla', true);
-    if (it) it.qty++; else pos.cart.push({pid: p.id, name: p.name, size, qty: 1, price: p.price});
+    const e = priceOf(p);   // el precio con descuento (el servidor lo vuelve a calcular al vender)
+    if (it) it.qty++; else pos.cart.push({pid: p.id, name: p.name, size, qty: 1, price: e.price, listPrice: e.list, offer: e.name});
     drawCart(); drawPosSizes();
   },
   posInc(el) {
@@ -67,8 +74,8 @@ const ACTIONS = {
     download(`inventario-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   }),
   exportSales() {
-    const rows = [['N.º', 'Fecha', 'Cliente', 'Pago', 'Estado', 'SKU', 'Producto', 'Talla', 'Cantidad', 'Precio', 'Total venta', 'Descuento']];
-    state.sales.forEach(s => s.items.forEach(i => rows.push(['V-' + pad(s.num, 4), fmtDate(s.date), s.customer, s.method, s.status, i.sku, i.name, i.size, i.qty, i.price, s.total, s.discount])));
+    const rows = [['N.º', 'Fecha', 'Cliente', 'Pago', 'Estado', 'SKU', 'Producto', 'Talla', 'Cantidad', 'Precio', 'Precio lista', 'Oferta', 'Total venta', 'Descuento']];
+    state.sales.forEach(s => s.items.forEach(i => rows.push(['V-' + pad(s.num, 4), fmtDate(s.date), s.customer, s.method, s.status, i.sku, i.name, i.size, i.qty, i.price, i.listPrice ?? i.price, i.discountName || '', s.total, s.discount])));
     download(`ventas-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   },
   exportMov() {
