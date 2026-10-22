@@ -29,15 +29,25 @@ function moveStock(p, size, delta, type, note, ref) {
   if (state.movements.length > 5000) state.movements.length = 5000;
 }
 
+const demoUsers = () => [
+  {id: 'demo-admin', name: 'Administrador demo', email: 'admin@plante.demo', role: 'admin', active: true, createdAt: new Date().toISOString()},
+  {id: 'demo-vendedor', name: 'Vendedor demo', email: 'vendedor@plante.demo', role: 'vendedor', active: true, createdAt: new Date().toISOString()}
+];
+function ensureUsers() { if (!Array.isArray(state.users) || !state.users.length) state.users = demoUsers(); }
+
 const LocalStore = {
   mode: 'local',
   imageMax: 640,   // más pequeño: localStorage tiene ~5 MB
-  user: {id: 'local', name: 'Modo demostración', email: '', role: 'admin'},
+  user: {id: 'demo-admin', name: 'Administrador demo', email: 'admin@plante.demo', role: 'admin'},
+  _setUser(role) {
+    const id = 'demo-' + role, u = state.users.find(x => x.id === id) || demoUsers().find(x => x.id === id);
+    this.user = {id: u.id, name: u.name, email: u.email, role: u.role};
+  },
 
-  async session() { return sessionStorage.getItem(LS_DEMO) === '1'; },
-  async signIn() { sessionStorage.setItem(LS_DEMO, '1'); },
+  async session() { const v = sessionStorage.getItem(LS_DEMO); return v === 'admin' || v === 'vendedor' || v === '1'; },
+  async signIn(role) { sessionStorage.setItem(LS_DEMO, role === 'vendedor' ? 'vendedor' : 'admin'); },   // en demostración se elige el rol para probarlo
   async signOut() { sessionStorage.removeItem(LS_DEMO); },
-  async init() { state = loadLocal(); },
+  async init() { state = loadLocal(); ensureUsers(); this._setUser(sessionStorage.getItem(LS_DEMO) === 'vendedor' ? 'vendedor' : 'admin'); },
   async reload() {},
 
   async saveProduct({id, data, stock, image}) {
@@ -104,8 +114,43 @@ const LocalStore = {
     saveLocal();
   },
 
+
+  /* ---- Usuarios (modo demostración: la lista vive en este navegador; no hay contraseñas reales) ---- */
+  async createUser({name, email, password, role}) {
+    if (!String(name).trim()) throw new Error('El nombre es obligatorio');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Correo no válido');
+    if (String(password).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
+    if (state.users.some(u => u.email.toLowerCase() === String(email).toLowerCase())) throw new Error('Ya existe un usuario con ese correo');
+    state.users.push({id: uid(), name: String(name).trim(), email, role: role === 'admin' ? 'admin' : 'vendedor', active: true, createdAt: new Date().toISOString()});
+    saveLocal();   // la contraseña no se guarda: en demostración no se inicia sesión con cuentas
+  },
+
+  async updateUser(id, {name, role, active}) {
+    const u = state.users.find(x => x.id === id);
+    if (!u) throw new Error('El usuario ya no existe');
+    const others = state.users.filter(x => x.id !== id && x.role === 'admin' && x.active).length;
+    if (u.role === 'admin' && u.active && (role !== 'admin' || !active) && others === 0) throw new Error('Debe quedar al menos un administrador activo');
+    Object.assign(u, {name, role, active});
+    saveLocal();
+    if (u.id === this.user.id) this.user = {...this.user, name: u.name};
+  },
+
+  async setUserPassword(id, password) {
+    if (String(password).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
+    if (!state.users.some(u => u.id === id)) throw new Error('El usuario ya no existe');
+  },
+
+  async deleteUser(id) {
+    const u = state.users.find(x => x.id === id);
+    if (!u) throw new Error('El usuario ya no existe');
+    if (id === this.user.id) throw new Error('No puedes eliminar tu propia cuenta');
+    if (u.role === 'admin' && u.active && !state.users.some(x => x.id !== id && x.role === 'admin' && x.active)) throw new Error('No se puede eliminar al último administrador activo');
+    state.users = state.users.filter(x => x.id !== id);
+    saveLocal();
+  },
+
   /* Solo existen en modo local */
-  async resetDemo() { state = blank(); seed(state); saveLocal(); },
-  async clearAll() { const keep = state.settings; state = blank(); state.settings = {...keep, nextSale: 1}; saveLocal(); },
-  async restore(d) { state = {...blank(), ...d, settings: {...blank().settings, ...(d.settings || {})}}; saveLocal(); }
+  async resetDemo() { const users = state.users; state = blank(); seed(state); state.users = users; saveLocal(); },
+  async clearAll() { const keep = state.settings, users = state.users; state = blank(); state.settings = {...keep, nextSale: 1}; state.users = users; saveLocal(); },
+  async restore(d) { const users = state.users; state = {...blank(), ...d, settings: {...blank().settings, ...(d.settings || {})}}; if (!Array.isArray(d.users) || !d.users.length) state.users = users; ensureUsers(); saveLocal(); }
 };

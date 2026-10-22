@@ -1,0 +1,14 @@
+{
+  "name": "plante-urban-inventario",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Inventario y punto de venta de Plante Urban Store",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "config": "node scripts/env.js",
+    "build": "node scripts/build.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

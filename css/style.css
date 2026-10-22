@@ -341,3 +341,18 @@ code{font-family:var(--font-mono);font-size:12px;background:var(--taupe);padding
   .auth-card{padding:72px 22px 24px}
   .auth-badge{width:112px;height:112px}
 }
+
+/* ---------- usuarios y roles ---------- */
+.b-admin{background:var(--ink);color:var(--on-ink)}
+.b-seller{background:var(--cyan-bg);color:var(--ink)}
+.perm th:not(:first-child),.perm td:not(:first-child){text-align:center;width:140px}
+.yes{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--cyan)}
+.pw-row{display:flex;gap:8px;align-items:center;margin-top:5px}
+.pw-row input{margin-top:0}
+.pw-row .btn{flex:none}
+.chk-line{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.chk-line input{width:16px;height:16px;padding:0;accent-color:var(--pink)}
+.demo-role{display:grid;gap:6px;font-size:13px;color:rgba(255,255,255,.8)}
+.demo-role select{height:46px;border-radius:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;padding:0 14px;font-size:15px}
+.demo-role select:focus{outline:0;border-color:#fff;box-shadow:0 0 0 3px rgba(8,169,193,.6)}
+.demo-role option{color:#111}

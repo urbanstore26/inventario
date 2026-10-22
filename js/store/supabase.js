@@ -9,6 +9,7 @@ function friendlyError(error) {
   if (error && error.code === '23505') return 'Ya existe un producto con ese SKU';
   if (error && error.code === '42501') return 'No tienes permiso para esta acción';
   if (/invalid login credentials/i.test(msg)) return 'Correo o contraseña incorrectos';
+  if (/edge function|functions\/v1|FunctionsFetchError/i.test(msg)) return 'No se pudo contactar la función admin-users. ¿Está desplegada? (ver README)';
   if (/failed to fetch|networkerror|load failed/i.test(msg)) return 'Sin conexión con el servidor. Revisa tu internet.';
   if (/row-level security/i.test(msg)) return 'No tienes permiso para esta acción';
   return msg;
@@ -26,7 +27,7 @@ const SupabaseStore = {
   /* remember = true guarda la sesión en localStorage; false, solo en sessionStorage (se pierde al cerrar la pestaña) */
   connect(remember = true) {
     this.remember = remember;
-    this.client = window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, {
+    this.client = window.supabase.createClient(window.APP_CONFIG.supabaseUrl, window.APP_CONFIG.supabaseAnonKey, {
       auth: {persistSession: true, autoRefreshToken: true, storage: remember ? window.localStorage : window.sessionStorage}
     });
   },
@@ -68,14 +69,16 @@ const SupabaseStore = {
 
   async reload() {
     const c = this.client;
-    const [settings, products, sales, movements] = await Promise.all([
+    const [settings, products, sales, movements, profiles] = await Promise.all([
       c.from('store_settings').select('*').eq('id', 1).single(),
       c.from('products').select('*, product_stock(size, qty)').order('name'),
       c.from('sales').select('*, sale_items(*)').order('created_at', {ascending: false}).limit(500),
-      c.from('stock_movements').select('*').order('created_at', {ascending: false}).limit(1000)
+      c.from('stock_movements').select('*').order('created_at', {ascending: false}).limit(1000),
+      c.from('profiles').select('id, full_name, email, role, active, created_at').order('created_at')
     ]);
     const st = must(settings);
     state = {
+      users: must(profiles).map(r => ({id: r.id, name: r.full_name || r.email || '', email: r.email || '', role: r.role, active: r.active, createdAt: r.created_at})),
       settings: {storeName: st.store_name, threshold: st.low_stock_threshold, sizes: st.sizes, nextSale: 0},
       products: must(products).map(r => ({
         id: r.id, sku: r.sku, name: r.name, brand: r.brand, category: r.category, gender: r.gender, color: r.color,
@@ -148,6 +151,37 @@ const SupabaseStore = {
 
   async saveSettings({storeName, threshold, sizes}) {
     must(await this.client.from('store_settings').update({store_name: storeName, low_stock_threshold: threshold, sizes}).eq('id', 1));
+    await this.reload();
+  },
+
+  /* ---- Usuarios: editar perfil va directo (RLS: solo admin); crear / contraseña / eliminar pasan por la Edge Function ---- */
+  async callAdmin(body) {
+    const {data, error} = await this.client.functions.invoke('admin-users', {body});
+    if (error) {
+      let msg = error.message;
+      try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) { /* sin cuerpo JSON */ }
+      throw new Error(friendlyError({message: msg}));
+    }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  },
+
+  async createUser({name, email, password, role}) {
+    await this.callAdmin({action: 'create', name, email, password, role});
+    await this.reload();
+  },
+
+  async updateUser(id, {name, role, active}) {
+    must(await this.client.from('profiles').update({full_name: name, role, active}).eq('id', id));
+    await this.reload();
+  },
+
+  async setUserPassword(id, password) {
+    await this.callAdmin({action: 'set_password', user_id: id, password});
+  },
+
+  async deleteUser(id) {
+    await this.callAdmin({action: 'delete', user_id: id});
     await this.reload();
   }
 };

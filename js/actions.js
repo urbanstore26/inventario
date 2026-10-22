@@ -17,7 +17,12 @@ const ACTIONS = {
   },
   viewImage: el => viewImage(el.dataset.id),
   removeImage: removeProductImage,
-  enterDemo: () => run(null, async () => { await store.signIn(); await startApp(); }),
+  enterDemo: () => run(null, async () => { await store.signIn(($('#demoRole') || {}).value); await startApp(); }),
+  newUser: () => userForm(),
+  editUser: el => userForm(el.dataset.id),
+  userPassword: el => userPasswordForm(el.dataset.id),
+  deleteUser: el => removeUser(el.dataset.id),
+  genPassword(el) { const i = el.closest('.pw-row').querySelector('input'); i.type = 'text'; i.value = randomPassword(); i.focus(); i.select(); },
   logout: doLogout,
   togglePw(el) {
     const input = el.closest('.field').querySelector('input'), show = input.type === 'password';

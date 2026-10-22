@@ -1,1 +1,13 @@
+# Claves y secretos: nunca a git
+.env
+.env.*
+!.env.example
+
+# Generado por scripts/ a partir de .env
+js/config.js
+dist/
+
+node_modules/
+
+# Base de datos (migraciones): se mantiene fuera de este repositorio
 supabase/

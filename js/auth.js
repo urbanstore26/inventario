@@ -33,6 +33,7 @@ function showAuth({demo = false, message = ''} = {}) {
       <p class="auth-err" id="authErr" role="alert"${message ? '' : ' hidden'}>${esc(message)}</p>
       <div class="auth-form">
         <p class="auth-text">Supabase no está configurado, así que la app funciona con datos de ejemplo guardados solo en este navegador. No hay cuentas de usuario.</p>
+        <label class="demo-role">Entrar como<select id="demoRole"><option value="admin">Administrador</option><option value="vendedor">Vendedor</option></select></label>
         <button class="auth-btn" data-action="enterDemo">Entrar a la demo</button>
         <p class="auth-text auth-small">Para activar el login real y la base de datos, completa <code>js/config.js</code> (ver README).</p>
       </div>`;
@@ -92,7 +93,8 @@ async function doLogout() {
 
 async function boot() {
   try { const t = localStorage.getItem('pu_theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
-  const wantsSupabase = APP_CONFIG.supabaseUrl && APP_CONFIG.supabaseAnonKey;
+  const cfg = window.APP_CONFIG || {};   // lo genera scripts/ desde .env; si falta, modo demostración
+  const wantsSupabase = cfg.supabaseUrl && cfg.supabaseAnonKey;
   if (wantsSupabase) {
     if (!window.supabase) { store = SupabaseStore; return showAuth({message: 'No se pudo cargar la librería de Supabase. Revisa tu conexión a internet y recarga.'}); }
     store = SupabaseStore; store.connect(rememberPref());

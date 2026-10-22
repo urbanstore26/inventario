@@ -1,5 +1,5 @@
 'use strict';
-/* Registro de vistas y navegación por hash */
+/* Registro de vistas, permisos por rol y navegación por hash */
 
 const VIEWS = {
   dashboard: {title: 'Panel', render: renderDashboard},
@@ -7,17 +7,20 @@ const VIEWS = {
   pos:       {title: 'Punto de venta', render: renderPOS},
   movements: {title: 'Movimientos de stock', render: renderMovements},
   sales:     {title: 'Ventas', render: renderSales},
+  users:     {title: 'Usuarios', render: renderUsers},
   settings:  {title: 'Ajustes', render: renderSettings}
 };
-const NAV_LABELS = {dashboard: 'Panel', inventory: 'Inventario', pos: 'Vender', movements: 'Movimientos', sales: 'Ventas', settings: 'Ajustes'};
+const NAV_LABELS = {dashboard: 'Panel', inventory: 'Inventario', pos: 'Vender', movements: 'Movimientos', sales: 'Ventas', users: 'Usuarios', settings: 'Ajustes'};
 
-const ADMIN_ONLY = ['movements', 'settings'];
+/* Vendedor: ver stock, vender e imprimir tickets (el historial de ventas sirve para reimprimirlos). Administrador: todo. */
+const ROLE_VIEWS = {admin: Object.keys(VIEWS), vendedor: ['inventory', 'pos', 'sales']};
+const DEFAULT_VIEW = {admin: 'dashboard', vendedor: 'pos'};
 
 function route(opts) {
   if (!appReady) return;
-  const allowed = Object.keys(VIEWS).filter(k => isAdmin() || !ADMIN_ONLY.includes(k));
-  const r = location.hash.replace(/^#\/?/, '') || 'dashboard';
-  const v = allowed.includes(r) ? r : 'dashboard';
+  const role = isAdmin() ? 'admin' : 'vendedor', allowed = ROLE_VIEWS[role];
+  const r = location.hash.replace(/^#\/?/, '') || DEFAULT_VIEW[role];
+  const v = allowed.includes(r) ? r : DEFAULT_VIEW[role];
   $('#nav').innerHTML = allowed.map(k => `<a href="#/${k}" class="${k === v ? 'on' : ''}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${NAV_LABELS[k]}</a>`).join('');
   $('#title').textContent = VIEWS[v].title;
   $('#today').textContent = new Date().toLocaleDateString('es', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'});

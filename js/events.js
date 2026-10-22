@@ -12,6 +12,9 @@ document.addEventListener('submit', e => {
   run(f.querySelector('button:not([type=button])'), async () => {
     if (f.dataset.form === 'product') await saveProduct(f);
     else if (f.dataset.form === 'move') await saveMove(f);
+    else if (f.dataset.form === 'user-new') await saveUserNew(f);
+    else if (f.dataset.form === 'user-edit') await saveUserEdit(f);
+    else if (f.dataset.form === 'user-pass') await saveUserPassword(f);
     else if (f.dataset.form === 'settings') {
       const sizes = sortSizes([...new Set(f.elements.sizes.value.split(',').map(s => s.trim()).filter(Boolean))]);
       if (!sizes.length) throw new Error('Indica al menos una talla');
@@ -25,6 +28,7 @@ document.addEventListener('input', e => {
   switch (t.id) {
     case 'invQ': ui.inv.q = t.value; drawInv(); break;
     case 'movQ': ui.mov.q = t.value; drawMov(); break;
+    case 'usrQ': ui.usr.q = t.value; drawUsers(); break;
     case 'posQ': pos.q = t.value; drawPosResults(); break;
     case 'posDisc': pos.discount = t.value; updatePosTotals(); break;
     case 'posPaid': pos.paid = t.value; updatePosTotals(); break;

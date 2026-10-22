@@ -17,7 +17,7 @@ let appReady = false;
 const isAdmin = () => !!store && !!store.user && store.user.role === 'admin';
 
 function blank() {
-  return {products: [], movements: [], sales: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
+  return {products: [], movements: [], sales: [], users: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
 }
 
 const totalStock = p => Object.values(p.stock).reduce((a, q) => a + (q || 0), 0);
@@ -40,4 +40,4 @@ function nextSku() {
   return 'PU-' + pad(max + 1, 4);
 }
 /* Estado de la interfaz (filtros por vista) */
-const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: ''}, sal: {from: '', to: '', method: '', status: ''}};
+const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: ''}, sal: {from: '', to: '', method: '', status: ''}, usr: {q: ''}};
