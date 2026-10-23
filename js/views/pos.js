@@ -61,17 +61,16 @@ function drawCart() {
     <button class="btn block" style="margin-top:8px;padding:8px" data-action="posClear">Vaciar carrito</button>`
     : '<div class="empty">El carrito está vacío.<br>Busca un producto y elige la talla.</div>';
 }
-/* El administrador puede vender a su nombre ("Yo"); el cajero siempre debe elegir un vendedor */
+/* Administrador y cajero: venden a su nombre ("Yo") o eligen cualquier otra cuenta activa */
 function sellerOptions() {
-  const first = isAdmin() ? `Yo (${store.user.name})` : 'Elige el vendedor…';
-  return `<option value="">${esc(first)}</option>` + sellerList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}${isAdmin() && s.role ? ' · ' + esc(s.role) : ''}</option>`).join('');
+  return `<option value="">${esc(`Yo (${store.user.name})`)}</option>` + sellerList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}${s.role ? ' · ' + esc(s.role) : ''}</option>`).join('');
 }
 /* Aviso bajo el selector cuando la lista de vendedores no se pudo cargar o está vacía */
 function sellerNote() {
   const err = state.sellersError;
   if (err === 'missing') return '<span class="meta warn">No se pudo cargar la lista de vendedores: falta ejecutar en Supabase la migración 20261023110000_cashier_role.sql.</span>';
   if (err) return `<span class="meta warn">No se pudo cargar la lista de vendedores: ${esc(err)}</span>`;
-  if (!sellerList().length) return isAdmin() ? '<span class="meta warn">No hay otras cuentas activas. Crea usuarios en Usuarios.</span>' : '<span class="meta warn">No hay otros vendedores activos. Crea cuentas con rol Vendedor en Usuarios.</span>';
+  if (!sellerList().length) return '<span class="meta warn">No hay otras cuentas activas. Crea usuarios en Usuarios.</span>';
   return '';
 }
 function updatePosTotals() {
@@ -84,10 +83,6 @@ async function checkout() {
   const t = cartTotals();
   if (!pos.cart.length) return;
   if (pos.method === 'Efectivo' && pos.paid !== '' && t.paid < t.total) return toast('El monto recibido es menor al total', true);
-  if (can('sales.assign_seller') && !isAdmin() && !pos.seller) {
-    const sel = $('#posSeller'); if (sel) sel.focus();
-    return toast(sellerList().length ? 'Elige qué vendedor realizó la venta' : (state.sellersError ? 'No se pudo cargar la lista de vendedores (ver aviso bajo el selector)' : 'No hay vendedores activos para elegir. Crea uno en Usuarios.'), true);
-  }
   await run($('[data-action=posCheckout]'), async () => {
     let sale;
     try {

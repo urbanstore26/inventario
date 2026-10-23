@@ -63,16 +63,14 @@ function nextSku() {
 const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: ''}, sal: {from: '', to: '', method: '', status: ''}, usr: {q: ''}, dsc: {q: ''}};
 
 
-/* Cuentas a cuyo nombre se puede registrar una venta (sin contar la propia, que es la opción "Yo"):
-   - el administrador puede elegir cualquier cuenta activa;
-   - el cajero, las activas con permiso de vender y sin permiso de elegir vendedor.
-   En Supabase la lista la entrega el servidor, porque un cajero no puede leer los perfiles de los demás. */
+/* Cuentas a cuyo nombre se puede registrar una venta: cualquier cuenta activa, sin contar la propia (la opción "Yo").
+   Solo quien tiene el permiso sales.assign_seller (administrador y cajero). En Supabase la lista la entrega el servidor,
+   porque un cajero no puede leer los perfiles de los demás. */
 function sellerList() {
   if (store && store.mode === 'supabase') return state.sellers || [];
-  const perms = id => (state.roles.find(r => r.id === id) || {}).permissions || [];
+  if (!can('sales.assign_seller')) return [];
   const me = store && store.user ? store.user.id : '';
-  return state.users
-    .filter(u => u.active && u.id !== me && (isAdmin() || (perms(u.role).includes('sales.create') && !perms(u.role).includes('sales.assign_seller'))))
+  return state.users.filter(u => u.active && u.id !== me)
     .map(u => ({id: u.id, name: u.name, role: roleName(u.role)})).sort((a, b) => a.name.localeCompare(b.name));
 }
 
