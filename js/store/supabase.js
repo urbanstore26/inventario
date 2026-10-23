@@ -11,6 +11,7 @@ function friendlyError(error) {
   if (/invalid login credentials/i.test(msg)) return 'Correo o contraseña incorrectos';
   if (/edge function|functions\/v1|FunctionsFetchError/i.test(msg)) return 'No se pudo contactar la función admin-users. ¿Está desplegada? (ver README)';
   if (/failed to fetch|networkerror|load failed/i.test(msg)) return 'Sin conexión con el servidor. Revisa tu internet.';
+  if (/PGRST202|could not find the function/i.test((error && error.code) + ' ' + msg)) return 'Falta actualizar la base de datos: ejecuta la migración pendiente en Supabase (ver README)';
   if (/row-level security/i.test(msg)) return 'No tienes permiso para esta acción';
   return msg;
 }
@@ -108,7 +109,7 @@ const SupabaseStore = {
         stock: Object.fromEntries((r.product_stock || []).filter(s => s.qty > 0).map(s => [s.size, s.qty]))
       })),
       sales: must(sales).map(r => ({
-        id: r.id, num: r.num, date: r.created_at, customer: r.customer, seller: r.seller_name || '', sellerId: r.seller_id || '', cashier: r.cashier_name || '', method: r.method, status: r.status,
+        id: r.id, num: r.num, date: r.created_at, customer: r.customer, note: r.note || '', seller: r.seller_name || '', sellerId: r.seller_id || '', cashier: r.cashier_name || '', method: r.method, status: r.status,
         subtotal: Number(r.subtotal), discount: Number(r.discount), total: Number(r.total), cost: Number(r.cost),
         paid: Number(r.paid), change: Number(r.change_amount),
         items: (r.sale_items || []).map(i => ({pid: i.product_id, sku: i.sku, name: i.name, size: i.size, qty: i.qty, price: Number(i.price), listPrice: Number(i.list_price ?? i.price), discountName: i.discount_name || '', cost: Number(i.cost)}))
@@ -159,11 +160,12 @@ const SupabaseStore = {
     await this.reload();
   },
 
-  async sell({items, method, discount, customer, paid, seller}) {
+  async sell({items, method, discount, customer, note, paid, seller}) {
     const args = {
       p_items: items.map(i => ({product_id: i.pid, size: i.size, qty: i.qty})),
       p_method: method, p_discount: discount || 0, p_customer: customer || '', p_paid: paid || 0
     };
+    if ((note || '').trim()) args.p_note = note.trim().slice(0, 200);   // solo si se escribió: sin observación funciona aunque falte la migración
     if (seller) args.p_seller = seller;   // solo se envía si se eligió: el servidor valida el permiso y que sea un vendedor activo
     const sale = must(await this.client.rpc('register_sale', args));
     await this.reload();

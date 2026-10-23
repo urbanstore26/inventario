@@ -93,7 +93,7 @@ async function doLogin(form) {
 async function doLogout() {
   try { await store.signOut(); } catch (e) {}
   appReady = false; state = blank(); productImage = null;
-  Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: '', seller: ''});
+  Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: '', note: '', seller: ''});
   closeModal();
   showAuth({demo: store.mode === 'local'});
 }

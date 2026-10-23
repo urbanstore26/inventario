@@ -134,7 +134,7 @@ const LocalStore = {
     saveLocal();
   },
 
-  async sell({items, method, discount, customer, paid, seller}) {
+  async sell({items, method, discount, customer, note, paid, seller}) {
     // vender a nombre de otra persona: solo con el permiso y solo a un vendedor activo
     const by = this.user;
     let who = {id: by.id, name: by.name}, cashier = '';
@@ -158,7 +158,7 @@ const LocalStore = {
       const sub = r2(lines.reduce((a, i) => a + i.price * i.qty, 0)), disc = r2(Math.min(Math.max(Number(discount) || 0, 0), sub)), total = r2(sub - disc);
       const cash = method === 'Efectivo' && paid > 0;
       if (cash && paid < total) throw new Error('El monto recibido es menor al total');
-      const sale = {id, num, date: new Date().toISOString(), customer: (customer || '').trim(), seller: who.name, sellerId: who.id, cashier, method, items: lines, subtotal: sub, discount: disc, total, cost: r2(lines.reduce((a, i) => a + i.cost * i.qty, 0)), paid: cash ? paid : total, change: cash ? r2(paid - total) : 0, status: 'completada'};
+      const sale = {id, num, date: new Date().toISOString(), customer: (customer || '').trim(), note: (note || '').trim().slice(0, 200), seller: who.name, sellerId: who.id, cashier, method, items: lines, subtotal: sub, discount: disc, total, cost: r2(lines.reduce((a, i) => a + i.cost * i.qty, 0)), paid: cash ? paid : total, change: cash ? r2(paid - total) : 0, status: 'completada'};
       state.sales.unshift(sale);
       saveLocal();
       return sale;

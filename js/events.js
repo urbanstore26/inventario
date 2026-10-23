@@ -38,6 +38,7 @@ document.addEventListener('input', e => {
     case 'posDisc': pos.discount = t.value; updatePosTotals(); break;
     case 'posPaid': pos.paid = t.value; updatePosTotals(); break;
     case 'posCustomer': pos.customer = t.value; break;
+    case 'posNote': pos.note = t.value; break;
     case 'mvType': $('#mvQtyLabel').textContent = t.value === 'ajuste' ? 'Nueva cantidad (conteo)' : 'Cantidad'; break;
   }
 });

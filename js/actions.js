@@ -85,8 +85,8 @@ const ACTIONS = {
     download(`inventario-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   }),
   exportSales() {
-    const rows = [['N.º', 'Fecha', 'Cliente', 'Vendedor', 'Cajero', 'Pago', 'Estado', 'SKU', 'Producto', 'Talla', 'Cantidad', 'Precio', 'Precio lista', 'Oferta', 'Total venta', 'Descuento']];
-    state.sales.forEach(s => s.items.forEach(i => rows.push(['V-' + pad(s.num, 4), fmtDate(s.date), s.customer, s.seller || '', s.cashier || '', s.method, s.status, i.sku, i.name, i.size, i.qty, i.price, i.listPrice ?? i.price, i.discountName || '', s.total, s.discount])));
+    const rows = [['N.º', 'Fecha', 'Cliente', 'Observación', 'Vendedor', 'Cajero', 'Pago', 'Estado', 'SKU', 'Producto', 'Talla', 'Cantidad', 'Precio', 'Precio lista', 'Oferta', 'Total venta', 'Descuento']];
+    state.sales.forEach(s => s.items.forEach(i => rows.push(['V-' + pad(s.num, 4), fmtDate(s.date), s.customer, s.note || '', s.seller || '', s.cashier || '', s.method, s.status, i.sku, i.name, i.size, i.qty, i.price, i.listPrice ?? i.price, i.discountName || '', s.total, s.discount])));
     download(`ventas-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   },
   exportMov() {

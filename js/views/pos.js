@@ -1,7 +1,7 @@
 'use strict';
 /* Vista: Punto de venta */
 
-const pos = {cart: [], sel: null, q: '', discount: '', method: 'Efectivo', paid: '', customer: '', seller: ''};
+const pos = {cart: [], sel: null, q: '', discount: '', method: 'Efectivo', paid: '', customer: '', note: '', seller: ''};
 
 function renderPOS() {
   $('#view').innerHTML = `
@@ -54,6 +54,7 @@ function drawCart() {
       <label class="f" id="paidWrap" ${pos.method === 'Efectivo' ? '' : 'hidden'}>Recibido ($)<input id="posPaid" type="number" min="0" step="0.01" value="${esc(pos.paid)}"></label>
       ${can('sales.assign_seller') ? `<label class="f" style="grid-column:1/-1">Vendedor que realiza la venta<select id="posSeller">${sellerOptions()}</select>${sellerNote()}</label>` : ''}
       <label class="f" style="grid-column:1/-1">Cliente (opcional)<input id="posCustomer" value="${esc(pos.customer)}"></label>
+      <label class="f" style="grid-column:1/-1">Observación (opcional)<input id="posNote" maxlength="200" value="${esc(pos.note)}" placeholder="Ej. cambio de talla, entrega pendiente…"></label>
     </div>
     <div class="r" id="changeRow" style="margin:10px 0;display:${pos.method === 'Efectivo' ? 'flex' : 'none'};justify-content:space-between"><span class="muted">Cambio</span><b class="num" id="tChange">${money(Math.max(0, t.paid - t.total))}</b></div>
     <button class="btn primary block" data-action="posCheckout">Cobrar ${money(t.total)}</button>
@@ -90,13 +91,13 @@ async function checkout() {
   await run($('[data-action=posCheckout]'), async () => {
     let sale;
     try {
-      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: Number(pos.discount) || 0, customer: pos.customer, paid: Number(pos.paid) || 0, seller: pos.seller});
+      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: Number(pos.discount) || 0, customer: pos.customer, note: pos.note, paid: Number(pos.paid) || 0, seller: pos.seller});
     } catch (e) {
       await store.reload().catch(() => {});          // el stock pudo cambiar en otro equipo
       drawPosResults(); drawPosSizes(); drawCart();
       throw e;
     }
-    Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: '', seller: ''});   // el vendedor se elige en cada venta
+    Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: '', note: '', seller: ''});   // el vendedor se elige en cada venta
     toast('Venta registrada V-' + pad(sale.num, 4));
     refresh();
     showSale(sale.id);
@@ -125,6 +126,7 @@ function receiptHTML(s) {
     ${row('Pago', esc(s.method))}
     ${s.change ? row('Recibido', money(s.paid)) + row('Cambio', money(s.change)) : ''}
     ${s.customer ? row('Cliente', esc(s.customer)) : ''}
+    ${s.note ? `<div class="tk-small tk-note">Obs.: ${esc(s.note)}</div>` : ''}
     ${s.seller ? row('Vendedor', esc(s.seller)) : ''}
     ${s.cashier ? row('Cajero', esc(s.cashier)) : ''}
     <div class="tk-sep"></div>
