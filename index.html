@@ -8,8 +8,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
 <link rel="icon" type="image/png" href="assets/favicon.png">
-<link rel="apple-touch-icon" href="assets/logo-circle.png">
-<meta name="theme-color" content="#fdfcfc">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#fdfcfc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141312" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Plante">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -25,6 +30,7 @@
     <div class="spacer"></div>
     <div class="userbox" id="userBox"></div>
     <button class="btn theme" data-action="toggleTheme">Cambiar tema</button>
+    <button class="btn theme" id="installBtn" data-action="pwaInstall" hidden>Instalar aplicación</button>
   </aside>
   <main>
     <div class="m-brand"><img class="logo-l" src="assets/logo-wordmark.png" alt="Plante"><img class="logo-d" src="assets/logo-wordmark-light.png" alt="Plante"></div>
@@ -33,6 +39,7 @@
   </main>
 </div>
 <div id="modalRoot"></div>
+<div id="pwaRoot"></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <input type="file" id="restoreFile" accept="application/json" hidden>
 
@@ -40,6 +47,7 @@
 <script src="js/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/pwa.js"></script>
 <script src="js/images.js"></script>
 <script src="js/seed.js"></script>
 <script src="js/data.js"></script>

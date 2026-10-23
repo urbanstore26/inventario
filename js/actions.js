@@ -7,6 +7,17 @@ const ACTIONS = {
     document.documentElement.dataset.theme = t;
     try { localStorage.setItem('pu_theme', t); } catch (e) {}
   },
+  async pwaInstall() {
+    if (!pwa.prompt) return;
+    pwa.prompt.prompt();
+    const r = await pwa.prompt.userChoice.catch(() => null);
+    pwa.prompt = null; pwaInstallButton(); pwaClose();
+    if (r && r.outcome === 'dismissed') pwaSet('later:' + Date.now());
+  },
+  pwaUpdate() { if (pwa.worker) pwa.worker.postMessage('SKIP_WAITING'); },
+  pwaUpdateLater: pwaUpdateBar,
+  pwaLater() { pwaSet('later:' + Date.now()); pwaClose(); },
+  pwaNever() { pwaSet('never'); pwaClose(); },
   closeModal,
   backdrop(el, e) { if (e.target === el) closeModal(); },
   newProduct: () => productForm(),
@@ -74,8 +85,8 @@ const ACTIONS = {
     download(`inventario-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   }),
   exportSales() {
-    const rows = [['N.º', 'Fecha', 'Cliente', 'Pago', 'Estado', 'SKU', 'Producto', 'Talla', 'Cantidad', 'Precio', 'Precio lista', 'Oferta', 'Total venta', 'Descuento']];
-    state.sales.forEach(s => s.items.forEach(i => rows.push(['V-' + pad(s.num, 4), fmtDate(s.date), s.customer, s.method, s.status, i.sku, i.name, i.size, i.qty, i.price, i.listPrice ?? i.price, i.discountName || '', s.total, s.discount])));
+    const rows = [['N.º', 'Fecha', 'Cliente', 'Vendedor', 'Cajero', 'Pago', 'Estado', 'SKU', 'Producto', 'Talla', 'Cantidad', 'Precio', 'Precio lista', 'Oferta', 'Total venta', 'Descuento']];
+    state.sales.forEach(s => s.items.forEach(i => rows.push(['V-' + pad(s.num, 4), fmtDate(s.date), s.customer, s.seller || '', s.cashier || '', s.method, s.status, i.sku, i.name, i.size, i.qty, i.price, i.listPrice ?? i.price, i.discountName || '', s.total, s.discount])));
     download(`ventas-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   },
   exportMov() {

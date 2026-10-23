@@ -75,7 +75,9 @@ const SupabaseStore = {
 
   async reload() {
     const c = this.client;
-    const [settings, products, sales, movements, profiles, roles, permissions, rolePerms, discounts, discountProducts] = await Promise.all([
+    // la lista de vendedores a elegir solo la piden quienes tienen ese permiso
+    const canPick = this.user && (this.user.role === 'admin' || (this.user.permissions || []).includes('sales.assign_seller'));
+    const [settings, products, sales, movements, profiles, roles, permissions, rolePerms, discounts, discountProducts, sellers] = await Promise.all([
       c.from('store_settings').select('*').eq('id', 1).single(),
       c.from('products').select('*, product_stock(size, qty)').order('name'),
       c.from('sales').select('*, sale_items(*)').order('created_at', {ascending: false}).limit(500),
@@ -85,11 +87,13 @@ const SupabaseStore = {
       c.from('permissions').select('key, label, description').order('sort'),
       c.from('role_permissions').select('role_id, permission'),
       c.from('discounts').select('*').order('created_at'),
-      c.from('discount_products').select('discount_id, product_id')
+      c.from('discount_products').select('discount_id, product_id'),
+      canPick ? c.rpc('list_sellers') : Promise.resolve({data: [], error: null})
     ]);
     const rp = must(rolePerms), dp = must(discountProducts);
     const st = must(settings);
     state = {
+      sellers: sellers.error ? [] : (sellers.data || []).map(r => ({id: r.id, name: r.name})),   // si falta la migración del Cajero, la lista queda vacía
       discounts: must(discounts).map(r => ({id: r.id, name: r.name, kind: r.kind, value: Number(r.value), startsOn: r.starts_on, endsOn: r.ends_on, active: r.active, createdAt: r.created_at, productIds: dp.filter(x => x.discount_id === r.id).map(x => x.product_id)})),
       roles: must(roles).map(r => ({id: r.id, name: r.name, description: r.description, isSystem: r.is_system, permissions: rp.filter(x => x.role_id === r.id).map(x => x.permission)})),
       permissions: must(permissions).map(p => ({key: p.key, label: p.label, description: p.description})),
@@ -102,7 +106,7 @@ const SupabaseStore = {
         stock: Object.fromEntries((r.product_stock || []).filter(s => s.qty > 0).map(s => [s.size, s.qty]))
       })),
       sales: must(sales).map(r => ({
-        id: r.id, num: r.num, date: r.created_at, customer: r.customer, method: r.method, status: r.status,
+        id: r.id, num: r.num, date: r.created_at, customer: r.customer, seller: r.seller_name || '', sellerId: r.seller_id || '', cashier: r.cashier_name || '', method: r.method, status: r.status,
         subtotal: Number(r.subtotal), discount: Number(r.discount), total: Number(r.total), cost: Number(r.cost),
         paid: Number(r.paid), change: Number(r.change_amount),
         items: (r.sale_items || []).map(i => ({pid: i.product_id, sku: i.sku, name: i.name, size: i.size, qty: i.qty, price: Number(i.price), listPrice: Number(i.list_price ?? i.price), discountName: i.discount_name || '', cost: Number(i.cost)}))
@@ -153,11 +157,13 @@ const SupabaseStore = {
     await this.reload();
   },
 
-  async sell({items, method, discount, customer, paid}) {
-    const sale = must(await this.client.rpc('register_sale', {
+  async sell({items, method, discount, customer, paid, seller}) {
+    const args = {
       p_items: items.map(i => ({product_id: i.pid, size: i.size, qty: i.qty})),
       p_method: method, p_discount: discount || 0, p_customer: customer || '', p_paid: paid || 0
-    }));
+    };
+    if (seller) args.p_seller = seller;   // solo se envía si se eligió: el servidor valida el permiso y que sea un vendedor activo
+    const sale = must(await this.client.rpc('register_sale', args));
     await this.reload();
     return state.sales.find(s => s.id === sale.id);
   },

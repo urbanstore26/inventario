@@ -46,6 +46,7 @@ document.addEventListener('change', e => {
   if (map[t.id]) { ui[map[t.id][0]][map[t.id][1]] = t.value; ({inv: drawInv, mov: drawMov, sal: drawSales})[map[t.id][0]](); }
   else if (t.id === 'mvProduct') { ui.mov.pid = t.value; fillMoveSizes(); }
   else if (t.id === 'posMethod') { pos.method = t.value; drawCart(); }
+  else if (t.id === 'posSeller') pos.seller = t.value;
   else if (t.dataset && t.dataset.pick) pickToggle(t.dataset.pick, t.checked);
   else if (t.id === 'pickCat') drawPick();
   else if (t.id === 'tkWidth') setTicketWidth(t.value);

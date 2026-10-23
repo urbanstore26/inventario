@@ -1,7 +1,7 @@
 'use strict';
 /* Vista: Punto de venta */
 
-const pos = {cart: [], sel: null, q: '', discount: '', method: 'Efectivo', paid: '', customer: ''};
+const pos = {cart: [], sel: null, q: '', discount: '', method: 'Efectivo', paid: '', customer: '', seller: ''};
 
 function renderPOS() {
   $('#view').innerHTML = `
@@ -52,12 +52,18 @@ function drawCart() {
     <div class="form-grid" style="margin-top:12px">
       <label class="f">Método de pago<select id="posMethod">${options(['Efectivo', 'Tarjeta', 'Transferencia'], pos.method)}</select></label>
       <label class="f" id="paidWrap" ${pos.method === 'Efectivo' ? '' : 'hidden'}>Recibido ($)<input id="posPaid" type="number" min="0" step="0.01" value="${esc(pos.paid)}"></label>
+      ${can('sales.assign_seller') ? `<label class="f" style="grid-column:1/-1">Vendedor que realiza la venta<select id="posSeller">${sellerOptions()}</select></label>` : ''}
       <label class="f" style="grid-column:1/-1">Cliente (opcional)<input id="posCustomer" value="${esc(pos.customer)}"></label>
     </div>
     <div class="r" id="changeRow" style="margin:10px 0;display:${pos.method === 'Efectivo' ? 'flex' : 'none'};justify-content:space-between"><span class="muted">Cambio</span><b class="num" id="tChange">${money(Math.max(0, t.paid - t.total))}</b></div>
     <button class="btn primary block" data-action="posCheckout">Cobrar ${money(t.total)}</button>
     <button class="btn block" style="margin-top:8px;padding:8px" data-action="posClear">Vaciar carrito</button>`
     : '<div class="empty">El carrito está vacío.<br>Busca un producto y elige la talla.</div>';
+}
+/* El administrador puede vender a su nombre ("Yo"); el cajero siempre debe elegir un vendedor */
+function sellerOptions() {
+  const first = isAdmin() ? `Yo (${store.user.name})` : 'Elige el vendedor…';
+  return `<option value="">${esc(first)}</option>` + sellerList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
 }
 function updatePosTotals() {
   const t = cartTotals();
@@ -69,16 +75,20 @@ async function checkout() {
   const t = cartTotals();
   if (!pos.cart.length) return;
   if (pos.method === 'Efectivo' && pos.paid !== '' && t.paid < t.total) return toast('El monto recibido es menor al total', true);
+  if (can('sales.assign_seller') && !isAdmin() && !pos.seller) {
+    const sel = $('#posSeller'); if (sel) sel.focus();
+    return toast(sellerList().length ? 'Elige qué vendedor realizó la venta' : 'No hay vendedores activos para elegir. Crea uno en Usuarios.', true);
+  }
   await run($('[data-action=posCheckout]'), async () => {
     let sale;
     try {
-      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: Number(pos.discount) || 0, customer: pos.customer, paid: Number(pos.paid) || 0});
+      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: Number(pos.discount) || 0, customer: pos.customer, paid: Number(pos.paid) || 0, seller: pos.seller});
     } catch (e) {
       await store.reload().catch(() => {});          // el stock pudo cambiar en otro equipo
       drawPosResults(); drawPosSizes(); drawCart();
       throw e;
     }
-    Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: ''});
+    Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: '', seller: ''});   // el vendedor se elige en cada venta
     toast('Venta registrada V-' + pad(sale.num, 4));
     refresh();
     showSale(sale.id);
@@ -96,7 +106,7 @@ function receiptHTML(s) {
     <div class="tk-store">${esc(name.toUpperCase())}</div>
     <div class="tk-center">Comprobante V-${pad(s.num, 4)}<br>${fmtDate(s.date)}${s.status === 'anulada' ? '<br><b>*** ANULADA ***</b>' : ''}</div>
     <div class="tk-sep"></div>
-    ${s.items.map(i => `<div class="tk-item"><div>${esc(i.name)}</div>${row(`${i.qty} × ${money(i.price)} · T${esc(i.size)}`, money(i.qty * i.price))}${(i.listPrice ?? i.price) > i.price ? `<div class="tk-small tk-off">Antes ${money(i.listPrice)}${i.discountName ? ' · ' + esc(i.discountName) : ''}</div>` : ''}</div>`).join('')}
+    ${s.items.map(i => `<div class="tk-item"><div>${esc(i.name)}</div>${i.sku ? `<div class="tk-small tk-sku">Cód. ${esc(i.sku)}</div>` : ''}${row(`${i.qty} × ${money(i.price)} · T${esc(i.size)}`, money(i.qty * i.price))}${(i.listPrice ?? i.price) > i.price ? `<div class="tk-small tk-off">Antes ${money(i.listPrice)}${i.discountName ? ' · ' + esc(i.discountName) : ''}</div>` : ''}</div>`).join('')}
     <div class="tk-sep"></div>
     ${row('Artículos', units)}
     ${saved > 0.004 ? row('Ahorro en ofertas', money(saved)) : ''}
@@ -107,6 +117,8 @@ function receiptHTML(s) {
     ${row('Pago', esc(s.method))}
     ${s.change ? row('Recibido', money(s.paid)) + row('Cambio', money(s.change)) : ''}
     ${s.customer ? row('Cliente', esc(s.customer)) : ''}
+    ${s.seller ? row('Vendedor', esc(s.seller)) : ''}
+    ${s.cashier ? row('Cajero', esc(s.cashier)) : ''}
     <div class="tk-sep"></div>
     <div class="tk-center">¡Gracias por tu compra!</div>
     <div class="tk-center tk-small">Conserva este comprobante</div>

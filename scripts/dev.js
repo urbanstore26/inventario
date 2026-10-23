@@ -1,6 +1,6 @@
 'use strict';
 /* Servidor local de desarrollo: genera js/config.js desde .env y sirve SOLO la app
-   (index.html, css/, js/, assets/). Nunca sirve .env, .git, scripts/ ni supabase/. */
+   (index.html, sw.js, manifest.webmanifest, css/, js/, assets/). Nunca sirve .env, .git, scripts/ ni supabase/. */
 
 const http = require('http');
 const fs = require('fs');
@@ -14,8 +14,8 @@ try {
 } catch (e) { console.error('Error: ' + e.message); process.exit(1); }
 
 const MIME = {'.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp'};
-const ALLOWED = [/^\/index\.html$/, /^\/(css|js|assets)\/[^\0]+$/];
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp', '.webmanifest': 'application/manifest+json'};
+const ALLOWED = [/^\/(index\.html|sw\.js|manifest\.webmanifest)$/, /^\/(css|js|assets)\/[^\0]+$/];
 
 const server = http.createServer((req, res) => {
   let p;

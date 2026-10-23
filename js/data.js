@@ -21,6 +21,7 @@ const PERMISSION_CATALOG = [
   {key: 'dashboard.view',  label: 'Ver el panel',                         description: 'Indicadores de ventas e inventario'},
   {key: 'inventory.view',  label: 'Ver inventario y stock',               description: 'Consultar productos, fotos y stock por talla'},
   {key: 'sales.create',    label: 'Registrar ventas e imprimir tickets',  description: 'Usar el punto de venta'},
+  {key: 'sales.assign_seller', label: 'Elegir el vendedor de cada venta',   description: 'El cajero indica qué vendedor realizó la venta'},
   {key: 'sales.view',      label: 'Ver el historial de ventas',           description: 'Consultar ventas y reimprimir tickets'},
   {key: 'costs.view',      label: 'Ver costos y utilidades',              description: 'Costo de los productos y ganancias (solo en pantalla)'},
   {key: 'products.manage', label: 'Crear y editar productos',             description: 'Incluye precios, fotos y eliminar'},
@@ -36,7 +37,7 @@ const can = key => !!store && !!store.user && (store.user.role === 'admin' || (s
 const roleName = id => (state.roles.find(r => r.id === id) || {}).name || id;
 
 function blank() {
-  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], discounts: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
+  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], discounts: [], sellers: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
 }
 
 const totalStock = p => Object.values(p.stock).reduce((a, q) => a + (q || 0), 0);
@@ -61,6 +62,15 @@ function nextSku() {
 /* Estado de la interfaz (filtros por vista) */
 const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: ''}, sal: {from: '', to: '', method: '', status: ''}, usr: {q: ''}, dsc: {q: ''}};
 
+
+/* Vendedores que se pueden elegir al vender: cuenta activa con permiso de vender y sin permiso de elegir vendedor
+   (en Supabase la lista la entrega el servidor, porque un cajero no puede leer los perfiles de los demás) */
+function sellerList() {
+  if (store && store.mode === 'supabase') return state.sellers || [];
+  const perms = id => (state.roles.find(r => r.id === id) || {}).permissions || [];
+  return state.users.filter(u => u.active && perms(u.role).includes('sales.create') && !perms(u.role).includes('sales.assign_seller'))
+    .map(u => ({id: u.id, name: u.name})).sort((a, b) => a.name.localeCompare(b.name));
+}
 
 /* ---- Descuentos: una oferta aplica a los productos elegidos; si hay varias, gana el precio más bajo ---- */
 const discountLabel = d => d.kind === 'percent' ? '-' + (+d.value) + '%' : '-' + money(d.value);

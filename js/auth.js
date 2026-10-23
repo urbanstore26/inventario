@@ -57,6 +57,7 @@ async function startApp() {
   $('#app').hidden = false;
   renderUserBox();
   route();
+  pwaOffer();   // en tablets y móviles, si la app no está instalada, ofrece instalarla
 }
 
 function renderUserBox() {
@@ -85,7 +86,7 @@ async function doLogin(form) {
 async function doLogout() {
   try { await store.signOut(); } catch (e) {}
   appReady = false; state = blank(); productImage = null;
-  Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: ''});
+  Object.assign(pos, {cart: [], sel: null, q: '', discount: '', paid: '', customer: '', seller: ''});
   closeModal();
   showAuth({demo: store.mode === 'local'});
 }

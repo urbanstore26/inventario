@@ -41,14 +41,18 @@ function ensureInitial() {
 
 function ensureDiscounts() { if (!Array.isArray(state.discounts)) state.discounts = []; }
 
+const CASHIER_ROLE = () => ({id: 'cajero', name: 'Cajero', description: 'Cobra, imprime tickets y elige qué vendedor realizó la venta', isSystem: false, permissions: ['inventory.view', 'sales.create', 'sales.view', 'sales.assign_seller']});
 const demoRoles = () => [
   {id: 'admin', name: 'Administrador', description: 'Acceso total al sistema', isSystem: true, permissions: PERMISSION_CATALOG.map(p => p.key)},
-  {id: 'vendedor', name: 'Vendedor', description: 'Ve el stock, vende e imprime tickets', isSystem: true, permissions: ['inventory.view', 'sales.create', 'sales.view']}
+  {id: 'vendedor', name: 'Vendedor', description: 'Ve el stock, vende e imprime tickets', isSystem: true, permissions: ['inventory.view', 'sales.create', 'sales.view']},
+  CASHIER_ROLE()
 ];
 /* El rol Administrador siempre tiene todos los permisos; los datos antiguos sin roles reciben los del sistema */
 function ensureRoles() {
   if (!Array.isArray(state.roles) || !state.roles.length) state.roles = demoRoles();
   state.roles.forEach(r => { if (r.id === 'admin') r.permissions = PERMISSION_CATALOG.map(p => p.key); });
+  // datos guardados antes del rol Cajero: se agrega una sola vez (si luego se elimina, no vuelve)
+  if (!state.cashierSeeded && !state.roles.some(r => r.id === 'cajero')) state.roles.push(CASHIER_ROLE());
   state.permissions = PERMISSION_CATALOG;
 }
 /* Roles disponibles para entrar a la demostración (antes de cargar los datos) */
@@ -63,11 +67,17 @@ const slugify = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 
 const demoUsers = () => [
   {id: 'demo-admin', name: 'Administrador demo', email: 'admin@plante.demo', role: 'admin', active: true, createdAt: new Date().toISOString()},
-  {id: 'demo-vendedor', name: 'Vendedor demo', email: 'vendedor@plante.demo', role: 'vendedor', active: true, createdAt: new Date().toISOString()}
+  {id: 'demo-vendedor', name: 'Vendedor demo', email: 'vendedor@plante.demo', role: 'vendedor', active: true, createdAt: new Date().toISOString()},
+  {id: 'demo-vendedora', name: 'Vendedora demo', email: 'vendedora@plante.demo', role: 'vendedor', active: true, createdAt: new Date().toISOString()},
+  {id: 'demo-cajero', name: 'Cajero demo', email: 'cajero@plante.demo', role: 'cajero', active: true, createdAt: new Date().toISOString()}
 ];
 function ensureUsers() {
   if (!Array.isArray(state.users) || !state.users.length) state.users = demoUsers();
   state.users.forEach(u => { if (!state.roles.some(r => r.id === u.role)) u.role = 'vendedor'; });
+  if (!state.cashierSeeded) {   // cuentas de ejemplo del rol Cajero, una sola vez
+    demoUsers().filter(d => ['demo-vendedora', 'demo-cajero'].includes(d.id) && !state.users.some(u => u.id === d.id) && state.roles.some(r => r.id === d.role)).forEach(d => state.users.push(d));
+    state.cashierSeeded = true;
+  }
 }
 
 const LocalStore = {
@@ -124,7 +134,16 @@ const LocalStore = {
     saveLocal();
   },
 
-  async sell({items, method, discount, customer, paid}) {
+  async sell({items, method, discount, customer, paid, seller}) {
+    // vender a nombre de otra persona: solo con el permiso y solo a un vendedor activo
+    const by = this.user;
+    let who = {id: by.id, name: by.name}, cashier = '';
+    if (seller && seller !== by.id) {
+      if (!can('sales.assign_seller')) throw new Error('No tienes permiso para elegir el vendedor');
+      const s = sellerList().find(x => x.id === seller);
+      if (!s) throw new Error('El vendedor elegido no es válido o está inactivo');
+      who = s; cashier = by.name;
+    }
     const snapshot = JSON.stringify(state);
     try {
       const num = state.settings.nextSale++, id = 'S' + uid();
@@ -139,7 +158,7 @@ const LocalStore = {
       const sub = r2(lines.reduce((a, i) => a + i.price * i.qty, 0)), disc = r2(Math.min(Math.max(Number(discount) || 0, 0), sub)), total = r2(sub - disc);
       const cash = method === 'Efectivo' && paid > 0;
       if (cash && paid < total) throw new Error('El monto recibido es menor al total');
-      const sale = {id, num, date: new Date().toISOString(), customer: (customer || '').trim(), method, items: lines, subtotal: sub, discount: disc, total, cost: r2(lines.reduce((a, i) => a + i.cost * i.qty, 0)), paid: cash ? paid : total, change: cash ? r2(paid - total) : 0, status: 'completada'};
+      const sale = {id, num, date: new Date().toISOString(), customer: (customer || '').trim(), seller: who.name, sellerId: who.id, cashier, method, items: lines, subtotal: sub, discount: disc, total, cost: r2(lines.reduce((a, i) => a + i.cost * i.qty, 0)), paid: cash ? paid : total, change: cash ? r2(paid - total) : 0, status: 'completada'};
       state.sales.unshift(sale);
       saveLocal();
       return sale;
@@ -287,8 +306,8 @@ const LocalStore = {
   },
 
   /* Solo existen en modo local (los usuarios y roles se conservan al reiniciar los datos) */
-  async resetDemo() { const {users, roles} = state; state = blank(); seed(state); Object.assign(state, {users, roles}); ensureRoles(); saveLocal(); },
-  async clearAll() { const {settings, users, roles} = state; state = blank(); Object.assign(state, {settings: {...settings, nextSale: 1}, users, roles}); ensureRoles(); saveLocal(); },
+  async resetDemo() { const {users, roles, cashierSeeded} = state; state = blank(); seed(state); Object.assign(state, {users, roles, cashierSeeded}); ensureRoles(); saveLocal(); },
+  async clearAll() { const {settings, users, roles, cashierSeeded} = state; state = blank(); Object.assign(state, {settings: {...settings, nextSale: 1}, users, roles, cashierSeeded}); ensureRoles(); saveLocal(); },
   async restore(d) {
     const {users, roles} = state;
     state = {...blank(), ...d, settings: {...blank().settings, ...(d.settings || {})}};
