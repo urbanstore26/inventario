@@ -37,7 +37,7 @@ const can = key => !!store && !!store.user && (store.user.role === 'admin' || (s
 const roleName = id => (state.roles.find(r => r.id === id) || {}).name || id;
 
 function blank() {
-  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], discounts: [], sellers: [], settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
+  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], discounts: [], sellers: [], sellersError: '', settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
 }
 
 const totalStock = p => Object.values(p.stock).reduce((a, q) => a + (q || 0), 0);

@@ -52,7 +52,7 @@ function drawCart() {
     <div class="form-grid" style="margin-top:12px">
       <label class="f">Método de pago<select id="posMethod">${options(['Efectivo', 'Tarjeta', 'Transferencia'], pos.method)}</select></label>
       <label class="f" id="paidWrap" ${pos.method === 'Efectivo' ? '' : 'hidden'}>Recibido ($)<input id="posPaid" type="number" min="0" step="0.01" value="${esc(pos.paid)}"></label>
-      ${can('sales.assign_seller') ? `<label class="f" style="grid-column:1/-1">Vendedor que realiza la venta<select id="posSeller">${sellerOptions()}</select></label>` : ''}
+      ${can('sales.assign_seller') ? `<label class="f" style="grid-column:1/-1">Vendedor que realiza la venta<select id="posSeller">${sellerOptions()}</select>${sellerNote()}</label>` : ''}
       <label class="f" style="grid-column:1/-1">Cliente (opcional)<input id="posCustomer" value="${esc(pos.customer)}"></label>
     </div>
     <div class="r" id="changeRow" style="margin:10px 0;display:${pos.method === 'Efectivo' ? 'flex' : 'none'};justify-content:space-between"><span class="muted">Cambio</span><b class="num" id="tChange">${money(Math.max(0, t.paid - t.total))}</b></div>
@@ -64,6 +64,14 @@ function drawCart() {
 function sellerOptions() {
   const first = isAdmin() ? `Yo (${store.user.name})` : 'Elige el vendedor…';
   return `<option value="">${esc(first)}</option>` + sellerList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+}
+/* Aviso bajo el selector cuando la lista de vendedores no se pudo cargar o está vacía */
+function sellerNote() {
+  const err = state.sellersError;
+  if (err === 'missing') return '<span class="meta warn">No se pudo cargar la lista de vendedores: falta ejecutar en Supabase la migración 20261023110000_cashier_role.sql.</span>';
+  if (err) return `<span class="meta warn">No se pudo cargar la lista de vendedores: ${esc(err)}</span>`;
+  if (!sellerList().length) return '<span class="meta warn">No hay otros vendedores activos. Crea cuentas con rol Vendedor en Usuarios.</span>';
+  return '';
 }
 function updatePosTotals() {
   const t = cartTotals();
@@ -77,7 +85,7 @@ async function checkout() {
   if (pos.method === 'Efectivo' && pos.paid !== '' && t.paid < t.total) return toast('El monto recibido es menor al total', true);
   if (can('sales.assign_seller') && !isAdmin() && !pos.seller) {
     const sel = $('#posSeller'); if (sel) sel.focus();
-    return toast(sellerList().length ? 'Elige qué vendedor realizó la venta' : 'No hay vendedores activos para elegir. Crea uno en Usuarios.', true);
+    return toast(sellerList().length ? 'Elige qué vendedor realizó la venta' : (state.sellersError ? 'No se pudo cargar la lista de vendedores (ver aviso bajo el selector)' : 'No hay vendedores activos para elegir. Crea uno en Usuarios.'), true);
   }
   await run($('[data-action=posCheckout]'), async () => {
     let sale;

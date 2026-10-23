@@ -396,3 +396,4 @@ code{font-family:var(--font-mono);font-size:12px;background:var(--taupe);padding
 .pwa-modal .foot{justify-content:center;flex-wrap:wrap}
 .btn.quiet{border-color:transparent;background:none;box-shadow:none;color:var(--muted)}
 .tk-sku{margin:0 0 1px;letter-spacing:.3px}
+label.f .meta{display:block;margin-top:5px;font-size:12px;line-height:1.35}

@@ -93,7 +93,9 @@ const SupabaseStore = {
     const rp = must(rolePerms), dp = must(discountProducts);
     const st = must(settings);
     state = {
-      sellers: sellers.error ? [] : (sellers.data || []).map(r => ({id: r.id, name: r.name})),   // si falta la migración del Cajero, la lista queda vacía
+      sellers: sellers.error ? [] : (sellers.data || []).map(r => ({id: r.id, name: r.name})),
+      // si la lista no carga (p. ej. falta la migración del Cajero) la app sigue funcionando y la pantalla de venta lo explica
+      sellersError: !sellers.error ? '' : (/PGRST202|42883|does not exist|schema cache/i.test(sellers.error.code + ' ' + sellers.error.message) ? 'missing' : friendlyError(sellers.error)),
       discounts: must(discounts).map(r => ({id: r.id, name: r.name, kind: r.kind, value: Number(r.value), startsOn: r.starts_on, endsOn: r.ends_on, active: r.active, createdAt: r.created_at, productIds: dp.filter(x => x.discount_id === r.id).map(x => x.product_id)})),
       roles: must(roles).map(r => ({id: r.id, name: r.name, description: r.description, isSystem: r.is_system, permissions: rp.filter(x => x.role_id === r.id).map(x => x.permission)})),
       permissions: must(permissions).map(p => ({key: p.key, label: p.label, description: p.description})),
