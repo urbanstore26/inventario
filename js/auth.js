@@ -52,12 +52,18 @@ const authError = msg => { const e = $('#authErr'); if (e) { e.textContent = msg
 
 async function startApp() {
   await store.init();
-  appReady = true;
-  $('#authRoot').innerHTML = '';
-  $('#app').hidden = false;
-  renderUserBox();
-  route();
-  pwaOffer();   // en tablets y móviles, si la app no está instalada, ofrece instalarla
+  try {
+    appReady = true;
+    $('#authRoot').innerHTML = '';
+    $('#app').hidden = false;
+    renderUserBox();
+    route();
+  } catch (e) {
+    console.error('No se pudo mostrar la aplicación:', e);
+    appReady = false; $('#app').hidden = true;
+    throw new Error('No se pudo mostrar la aplicación: ' + e.message);
+  }
+  try { pwaOffer(); } catch (e) { console.error(e); }   // en tablets y móviles, si la app no está instalada, ofrece instalarla
 }
 
 function renderUserBox() {
@@ -78,7 +84,8 @@ async function doLogin(form) {
     await store.signIn(form.elements.email.value.trim(), form.elements.password.value);
     await startApp();
   } catch (e) {
-    authError(e.message);
+    console.error('Inicio de sesión:', e);
+    if ($('#authErr')) authError(e.message); else showAuth({demo: store.mode === 'local', message: e.message});   // el formulario pudo haberse borrado
     try { await store.signOut(); } catch (_) {}
   }
 }
