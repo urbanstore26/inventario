@@ -398,3 +398,34 @@ code{font-family:var(--font-mono);font-size:12px;background:var(--taupe);padding
 .tk-sku{margin:0 0 1px;letter-spacing:.3px}
 label.f .meta{display:block;margin-top:5px;font-size:12px;line-height:1.35}
 .tk-note{white-space:normal;overflow-wrap:anywhere;margin-top:2px}
+
+/* Mobiliario y equipo */
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;margin-bottom:16px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--taupe)}
+.seg button{border:0;background:none;color:var(--ink);font:inherit;font-weight:500;font-size:14px;padding:7px 16px;border-radius:var(--r-pill);cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--on-ink)}
+.seg button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.meter{height:8px;border-radius:99px;background:var(--stone);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--cyan);border-radius:99px}
+.meter.over i{background:var(--pink)}
+.over-text{color:var(--pink)}
+.card.notice{margin-bottom:14px;border-left:8px solid var(--orange);line-height:1.5}
+.card.notice code{font-family:var(--font-mono);font-size:.9em}
+.toolbar input[type=month]{flex:none;width:176px}
+
+/* Cambios y devoluciones */
+.xl{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) 78px auto;gap:8px;margin-bottom:8px;align-items:center}
+.xl>span{display:block;width:1px}
+.xf-h{margin:18px 0 8px;font-size:14px;font-weight:500}
+.xf-sum{margin-top:14px;padding:12px 14px;background:var(--taupe);border-radius:var(--r-small)}
+.xf-sum .r{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+.xf-sum .r.grand{font-weight:600;font-size:16px;border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
+input.xs{width:72px}
+@media(max-width:700px){.xl{grid-template-columns:1fr 1fr}.xl select:first-child{grid-column:1/-1}}
+.xf-sale{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:var(--taupe);border-radius:var(--r-small)}
+.xf-find{grid-template-columns:repeat(4,minmax(0,1fr))}
+.xf-results{display:grid;gap:6px;max-height:230px;overflow:auto;margin-top:8px}
+.xf-res{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-small);background:var(--eggshell);color:var(--ink);font:inherit;cursor:pointer}
+.xf-res:hover:not(:disabled){border-color:var(--pink)}
+.xf-res:disabled{opacity:.55;cursor:not-allowed}
+.xf-res:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+@media(max-width:700px){.xf-find{grid-template-columns:1fr 1fr}}

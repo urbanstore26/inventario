@@ -9,7 +9,9 @@ const MOVE_TYPES = {
   salida:     {label: 'Salida',        cls: 'b-low'},
   ajuste:     {label: 'Ajuste',        cls: 'b-neutral'},
   venta:      {label: 'Venta',         cls: 'b-info'},
-  devolucion: {label: 'Devolución',    cls: 'b-ok'}
+  devolucion: {label: 'Devolución',    cls: 'b-ok'},
+  danado:     {label: 'Dañado',        cls: 'b-out'},
+  cambio:     {label: 'Cambio',        cls: 'b-info'}
 };
 let state = blank();      // lo llena el store activo (local o Supabase) al iniciar sesión
 let store = null;         // LocalStore | SupabaseStore
@@ -22,10 +24,15 @@ const PERMISSION_CATALOG = [
   {key: 'inventory.view',  label: 'Ver inventario y stock',               description: 'Consultar productos, fotos y stock por talla'},
   {key: 'sales.create',    label: 'Registrar ventas e imprimir tickets',  description: 'Usar el punto de venta'},
   {key: 'sales.assign_seller', label: 'Elegir el vendedor de cada venta',   description: 'El cajero indica qué vendedor realizó la venta'},
+  {key: 'exchanges.create', label: 'Registrar cambios y devoluciones',     description: 'Cambios de talla, de producto, productos dañados y devoluciones'},
   {key: 'sales.view',      label: 'Ver el historial de ventas',           description: 'Consultar ventas y reimprimir tickets'},
   {key: 'costs.view',      label: 'Ver costos y utilidades',              description: 'Costo de los productos y ganancias (solo en pantalla)'},
   {key: 'products.manage', label: 'Crear y editar productos',             description: 'Incluye precios, fotos y eliminar'},
   {key: 'discounts.manage', label: 'Administrar descuentos',               description: 'Crear promociones y elegir a qué productos aplican'},
+  {key: 'assets.view',     label: 'Ver mobiliario y equipo',              description: 'Consultar los bienes de la tienda y los planes de inversión'},
+  {key: 'assets.manage',   label: 'Administrar mobiliario y equipo',      description: 'Altas, cambios y bajas de bienes y planes de inversión'},
+  {key: 'expenses.view',   label: 'Ver gastos y pagos',                   description: 'Pagos de empleados, etiquetas y otros gastos de los planes (incluye sueldos)'},
+  {key: 'expenses.manage', label: 'Registrar gastos y pagos',             description: 'Crear, editar y eliminar gastos y pagos de los planes de inversión'},
   {key: 'stock.adjust',    label: 'Entradas, salidas y ajustes de stock', description: 'Movimientos de inventario y su historial'},
   {key: 'sales.void',      label: 'Anular ventas',                        description: 'Devuelve los pares al inventario'},
   {key: 'reports.export',  label: 'Exportar reportes',                    description: 'Descargar el inventario y las ventas en CSV'},
@@ -33,11 +40,12 @@ const PERMISSION_CATALOG = [
   {key: 'users.manage',    label: 'Gestionar usuarios',                   description: 'Crear cuentas, cambiar contraseñas, activar o desactivar'}
 ];
 /* ¿La sesión actual tiene este permiso? (el rol Administrador los tiene todos) */
-const can = key => !!store && !!store.user && (store.user.role === 'admin' || (store.user.permissions || []).includes(key));
+/* administrar mobiliario y equipo, o los gastos, incluye verlos */
+const can = key => !!store && !!store.user && (store.user.role === 'admin' || (store.user.permissions || []).includes(key) || (key === 'assets.view' && (store.user.permissions || []).includes('assets.manage')) || (key === 'expenses.view' && (store.user.permissions || []).includes('expenses.manage')));
 const roleName = id => (state.roles.find(r => r.id === id) || {}).name || id;
 
 function blank() {
-  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], discounts: [], sellers: [], sellersError: '', settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
+  return {products: [], movements: [], sales: [], users: [], roles: [], permissions: [], discounts: [], sellers: [], sellersError: '', plans: [], assets: [], assetLog: [], assetsError: '', expenses: [], expensesError: '', exchanges: [], exchangesError: '', settings: {storeName: 'Plante Urban Store', threshold: 3, sizes: DEFAULT_SIZES.slice(), nextSale: 1}};
 }
 
 const totalStock = p => Object.values(p.stock).reduce((a, q) => a + (q || 0), 0);
@@ -60,7 +68,7 @@ function nextSku() {
   return 'PU-' + pad(max + 1, 4);
 }
 /* Estado de la interfaz (filtros por vista) */
-const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: ''}, sal: {from: '', to: '', method: '', status: ''}, usr: {q: ''}, dsc: {q: ''}};
+const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: '', tab: 'movimientos'}, exc: {q: '', reason: ''}, sal: {from: '', to: '', fromT: '', toT: '', method: '', status: ''}, usr: {q: ''}, dsc: {q: ''}, ast: {tab: 'bienes', q: '', cat: '', status: '', plan: '', evq: '', evkind: '', exq: '', exkind: '', explan: '', exmonth: ''}};
 
 
 /* Cuentas a cuyo nombre se puede registrar una venta: cualquier cuenta activa, sin contar la propia (la opción "Yo").
@@ -103,3 +111,36 @@ function offerBadge(p) {
   const e = priceOf(p);
   return e.discount ? `<span class="badge b-low offer" title="${esc(e.name)}">${esc(discountLabel(e.discount))}</span>` : '';
 }
+
+
+/* ---- Mobiliario y equipo y planes de inversión social ---- */
+const ASSET_STATUS = {
+  nuevo:      {label: 'Nuevo',         cls: 'b-info'},
+  bueno:      {label: 'Bueno',         cls: 'b-ok'},
+  regular:    {label: 'Regular',       cls: 'b-low'},
+  danado:     {label: 'Dañado',        cls: 'b-out'},
+  reparacion: {label: 'En reparación', cls: 'b-low'},
+  baja:       {label: 'Dado de baja',  cls: 'b-neutral'}
+};
+const ASSET_CATEGORIES = ['Cámaras', 'Computadoras', 'Impresoras', 'Muebles', 'Sillas', 'Espejos', 'Estantes y vitrinas', 'Iluminación', 'Aire acondicionado', 'Otros'];
+const assetValue = a => Math.round(a.quantity * a.unitCost * 100) / 100;
+const getAsset = id => state.assets.find(a => a.id === id);
+const getPlan = id => state.plans.find(p => p.id === id);
+const EXPENSE_KINDS = {
+  empleado:   {label: 'Pago de empleado',     cls: 'b-info'},
+  etiquetas:  {label: 'Etiquetas y stickers', cls: 'b-low'},
+  materiales: {label: 'Materiales',           cls: 'b-neutral'},
+  servicios:  {label: 'Servicios',            cls: 'b-neutral'},
+  otro:       {label: 'Otros gastos',         cls: 'b-neutral'}
+};
+const round2 = n => Math.round(n * 100) / 100;
+/* Resumen de un plan ('' = sin plan): bienes (tipos, unidades y costo, incluidos los dados de baja), pagos de empleados,
+   otros gastos y el total invertido. Los gastos solo cuentan si el usuario puede verlos (si no, no están cargados). */
+function planStats(planId) {
+  const list = state.assets.filter(a => (a.planId || '') === (planId || '')), ex = (state.expenses || []).filter(e => (e.planId || '') === (planId || ''));
+  const assets = round2(list.reduce((n, a) => n + a.quantity * a.unitCost, 0));
+  const payroll = round2(ex.filter(e => e.kind === 'empleado').reduce((n, e) => n + e.amount, 0)), other = round2(ex.filter(e => e.kind !== 'empleado').reduce((n, e) => n + e.amount, 0));
+  return {items: list.length, units: list.reduce((n, a) => n + a.quantity, 0), assets, payroll, other, invested: round2(assets + payroll + other)};
+}
+/* active (vigente) | scheduled (aún no empieza) | closed (cerrado a mano o ya terminó) */
+const planState = (p, day = dayKey(new Date())) => !p.active ? 'closed' : (p.endsOn && p.endsOn < day) ? 'closed' : (p.startsOn && p.startsOn > day) ? 'scheduled' : 'active';

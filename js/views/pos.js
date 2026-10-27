@@ -124,6 +124,7 @@ function receiptHTML(s) {
     ${s.note ? `<div class="tk-small tk-note">Obs.: ${esc(s.note)}</div>` : ''}
     ${s.seller ? row('Vendedor', esc(s.seller)) : ''}
     ${s.cashier ? row('Cajero', esc(s.cashier)) : ''}
+    ${exchangesBlock(s)}
     <div class="tk-sep"></div>
     <div class="tk-center">¡Gracias por tu compra!</div>
     <div class="tk-center tk-small">Conserva este comprobante</div>
@@ -136,7 +137,8 @@ function showSale(id) {
       <select id="tkWidth"><option value="80"${mm === '80' ? ' selected' : ''}>Rollo de 80 mm (estándar)</option><option value="58"${mm === '58' ? ' selected' : ''}>Rollo de 58 mm (angosto)</option></select></label></div>
     <div class="ticket-wrap">${receiptHTML(s)}</div>
     <div class="foot no-print">
-    ${s.status === 'completada' && can('sales.void') ? `<button class="btn danger" data-action="voidSale" data-id="${s.id}">Anular venta</button>` : ''}
+    ${s.status === 'completada' && can('exchanges.create') ? `<button class="btn" data-action="newExchangeFor" data-id="${s.id}">Registrar cambio</button>` : ''}
+    ${s.status === 'completada' && can('sales.void') && !saleExchanges(s.id).length ? `<button class="btn danger" data-action="voidSale" data-id="${s.id}">Anular venta</button>` : ''}
     <button class="btn" data-action="closeModal">Cerrar</button><button class="btn primary" data-action="printReceipt">Imprimir ticket</button></div>`);
 }
 

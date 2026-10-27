@@ -1,9 +1,19 @@
 'use strict';
 /* Vista: Movimientos de stock */
 
+/* Pestañas: Movimientos de stock (con permiso de ajustar stock) y Cambios y devoluciones */
+function movementTabs() {
+  return [...(can('stock.adjust') ? [['movimientos', 'Movimientos']] : []), ...((can('exchanges.create') || can('stock.adjust')) ? [['cambios', 'Cambios y devoluciones']] : [])];
+}
 function renderMovements() {
+  const tabs = movementTabs();
+  if (!tabs.some(([k]) => k === ui.mov.tab)) ui.mov.tab = tabs.length ? tabs[0][0] : 'movimientos';
+  $('#view').innerHTML = (tabs.length > 1 ? `<div class="seg" role="tablist">${tabs.map(([k, l]) => `<button class="${ui.mov.tab === k ? 'on' : ''}" data-action="movTab" data-tab="${k}" role="tab" aria-selected="${ui.mov.tab === k}">${l}</button>`).join('')}</div>` : '') + '<div id="movBody"></div>';
+  (ui.mov.tab === 'cambios' ? renderExchangesTab : renderMovementsTab)();
+}
+function renderMovementsTab() {
   const f = ui.mov, prods = [...state.products].sort((a, b) => a.name.localeCompare(b.name));
-  $('#view').innerHTML = `
+  $('#movBody').innerHTML = `
   <div class="card" style="margin-bottom:14px"><h3>Registrar movimiento</h3>
     <form data-form="move"><div class="form-grid">
       <label class="f">Producto<select id="mvProduct" name="pid" required><option value="">Selecciona…</option>${prods.map(p => `<option value="${p.id}"${p.id === f.pid ? ' selected' : ''}>${esc(p.sku)} — ${esc(p.name)}${p.brand ? ' (' + esc(p.brand) + ')' : ''}</option>`).join('')}</select></label>

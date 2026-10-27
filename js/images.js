@@ -34,3 +34,11 @@ async function prepareImage(file, max = 900) {
   if (!blob) throw new Error('No se pudo procesar la imagen');
   return {blob, dataUrl: await blobToDataURL(blob)};
 }
+
+/* Bienes de la tienda: mismo marco que los zapatos, con un dibujo de equipo cuando no hay foto */
+const ASSET_SVG = '<svg viewBox="0 0 64 44" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">' +
+  '<rect x="12" y="5" width="40" height="26" rx="3"/><path d="M24 39h16M32 31v8"/><path d="M18 12h28M18 18h18"/></svg>';
+function assetThumb(a, size = '') {
+  const inner = a.image ? `<img src="${esc(a.image)}" alt="${esc(a.name)}" loading="lazy" decoding="async">` : ASSET_SVG;
+  return `<span class="thumb ${size}">${inner}</span>`;
+}

@@ -6,6 +6,8 @@ const IMG_BUCKET = 'product-images';
 
 function friendlyError(error) {
   const msg = (error && error.message) || String(error);
+  if (/assets_code_key/.test(msg)) return 'Ya existe un bien con ese código';
+  if (/investment_plans_name_key/.test(msg)) return 'Ya existe un plan con ese nombre';
   if (error && error.code === '23505') return 'Ya existe un producto con ese SKU';
   if (error && error.code === '42501') return 'No tienes permiso para esta acción';
   if (/invalid login credentials/i.test(msg)) return 'Correo o contraseña incorrectos';
@@ -77,8 +79,13 @@ const SupabaseStore = {
   async reload() {
     const c = this.client;
     // la lista de vendedores a elegir solo la piden quienes tienen ese permiso
+    // mobiliario y equipo: solo se pide a quien tiene permiso para verlo
+    const canAssets = this.user && (this.user.role === 'admin' || ['assets.view', 'assets.manage'].some(k => (this.user.permissions || []).includes(k)));
+    const canExpenses = this.user && (this.user.role === 'admin' || ['expenses.view', 'expenses.manage'].some(k => (this.user.permissions || []).includes(k)));
+    const canExch = this.user && (this.user.role === 'admin' || ['exchanges.create', 'stock.adjust', 'sales.view', 'reports.export', 'dashboard.view'].some(k => (this.user.permissions || []).includes(k)));
+    const none = Promise.resolve({data: [], error: null});
     const canPick = this.user && (this.user.role === 'admin' || (this.user.permissions || []).includes('sales.assign_seller'));
-    const [settings, products, sales, movements, profiles, roles, permissions, rolePerms, discounts, discountProducts, sellers] = await Promise.all([
+    const [settings, products, sales, movements, profiles, roles, permissions, rolePerms, discounts, discountProducts, sellers, plansRes, assetsRes, eventsRes, expensesRes, exchangesRes] = await Promise.all([
       c.from('store_settings').select('*').eq('id', 1).single(),
       c.from('products').select('*, product_stock(size, qty)').order('name'),
       c.from('sales').select('*, sale_items(*)').order('created_at', {ascending: false}).limit(500),
@@ -89,11 +96,30 @@ const SupabaseStore = {
       c.from('role_permissions').select('role_id, permission'),
       c.from('discounts').select('*').order('created_at'),
       c.from('discount_products').select('discount_id, product_id'),
-      canPick ? c.rpc('list_sellers') : Promise.resolve({data: [], error: null})
+      canPick ? c.rpc('list_sellers') : Promise.resolve({data: [], error: null}),
+      canAssets ? c.from('investment_plans').select('*').order('created_at') : none,
+      canAssets ? c.from('assets').select('*').order('code') : none,
+      canAssets ? c.from('asset_events').select('*').order('created_at', {ascending: false}).limit(500) : none,
+      canExpenses ? c.from('plan_expenses').select('*').order('spent_on', {ascending: false}).limit(1000) : none,
+      canExch ? c.from('exchanges').select('*, exchange_items(*)').order('created_at', {ascending: false}).limit(500) : none
     ]);
+    const aerr = [plansRes, assetsRes, eventsRes].find(r => r.error);
     const rp = must(rolePerms), dp = must(discountProducts);
     const st = must(settings);
     state = {
+      // si faltan las tablas (migración sin ejecutar) o falla la carga, la app sigue funcionando y la pantalla lo explica
+      plans: aerr ? [] : (plansRes.data || []).map(r => ({id: r.id, name: r.name, description: r.description, budget: Number(r.budget), startsOn: r.starts_on, endsOn: r.ends_on, active: r.active, createdAt: r.created_at})),
+      assets: aerr ? [] : (assetsRes.data || []).map(r => ({id: r.id, code: r.code, name: r.name, category: r.category, brand: r.brand, model: r.model, serial: r.serial, quantity: r.quantity, unitCost: Number(r.unit_cost),
+        acquiredOn: r.acquired_on, location: r.location, responsible: r.responsible, status: r.status, planId: r.plan_id, notes: r.notes, createdAt: r.created_at, updatedAt: r.updated_at,
+        imagePath: r.image_path, image: r.image_path ? this.publicUrl(r.image_path) : ''})),
+      assetLog: aerr ? [] : (eventsRes.data || []).map(r => ({id: r.id, assetId: r.asset_id, code: r.asset_code, name: r.asset_name, kind: r.kind, detail: r.detail, date: r.created_at, actor: r.actor_name})),
+      exchanges: exchangesRes.error ? [] : (exchangesRes.data || []).map(r => ({id: r.id, num: r.num, date: r.created_at, saleId: r.sale_id, saleNum: r.sale_num, reason: r.reason, customer: r.customer, note: r.note,
+        difference: Number(r.difference), method: r.method, by: r.created_name,
+        items: (r.exchange_items || []).map(i => ({dir: i.direction, pid: i.product_id, sku: i.sku, name: i.name, size: i.size, qty: i.qty, price: Number(i.price), condition: i.condition}))})),
+      exchangesError: !exchangesRes.error ? '' : (/PGRST205|PGRST202|42P01|does not exist|schema cache/i.test(exchangesRes.error.code + ' ' + exchangesRes.error.message) ? 'missing' : friendlyError(exchangesRes.error)),
+      expenses: expensesRes.error ? [] : (expensesRes.data || []).map(r => ({id: r.id, planId: r.plan_id, kind: r.kind, concept: r.concept, payee: r.payee, amount: Number(r.amount), spentOn: r.spent_on, notes: r.notes, createdAt: r.created_at, updatedAt: r.updated_at})),
+      expensesError: !expensesRes.error ? '' : (/PGRST205|PGRST202|42P01|does not exist|schema cache/i.test(expensesRes.error.code + ' ' + expensesRes.error.message) ? 'missing' : friendlyError(expensesRes.error)),
+      assetsError: !aerr ? '' : (/PGRST205|PGRST202|42P01|does not exist|schema cache/i.test(aerr.error.code + ' ' + aerr.error.message) ? 'missing' : friendlyError(aerr.error)),
       sellers: sellers.error ? [] : (sellers.data || []).map(r => ({id: r.id, name: r.name, role: r.role_name || ''})),
       // si la lista no carga (p. ej. falta la migración del Cajero) la app sigue funcionando y la pantalla de venta lo explica
       sellersError: !sellers.error ? '' : (/PGRST202|42883|does not exist|schema cache/i.test(sellers.error.code + ' ' + sellers.error.message) ? 'missing' : friendlyError(sellers.error)),
@@ -253,6 +279,63 @@ const SupabaseStore = {
 
   async deleteDiscount(id) {
     must(await this.client.from('discounts').delete().eq('id', id));
+    await this.reload();
+  },
+
+  /* ---- Mobiliario y equipo y planes de inversión: tablas con RLS; el historial lo escribe un trigger ---- */
+  async saveAsset({id, data, image}) {
+    const c = this.client;
+    const row = {name: data.name, category: data.category, brand: data.brand, model: data.model, serial: data.serial, quantity: data.quantity, unit_cost: data.unitCost,
+      acquired_on: data.acquiredOn || null, location: data.location, responsible: data.responsible, status: data.status, plan_id: data.planId || null, notes: data.notes};
+    if (!id && data.code) row.code = data.code;   // sin código, la base genera AF-0001, AF-0002…
+    let aid = id, oldPath = id ? (getAsset(id) || {}).imagePath : null;
+    try {
+      if (id) must(await c.from('assets').update(row).eq('id', id));
+      else aid = must(await c.from('assets').insert(row).select('id').single()).id;
+      if (image === 'remove' && oldPath) {
+        must(await c.from('assets').update({image_path: null}).eq('id', aid));
+        await c.storage.from(IMG_BUCKET).remove([oldPath]);
+      } else if (image && image.blob) {
+        const path = `assets/${aid}/${Date.now()}.jpg`;
+        must(await c.storage.from(IMG_BUCKET).upload(path, image.blob, {contentType: 'image/jpeg', cacheControl: '31536000'}));
+        must(await c.from('assets').update({image_path: path}).eq('id', aid));
+        if (oldPath) await c.storage.from(IMG_BUCKET).remove([oldPath]);
+      }
+    } finally {
+      await this.reload().catch(() => {});   // la pantalla siempre refleja lo que realmente quedó guardado
+    }
+  },
+  async deleteAsset(id) {
+    const path = (getAsset(id) || {}).imagePath;
+    must(await this.client.from('assets').delete().eq('id', id));
+    if (path) await this.client.storage.from(IMG_BUCKET).remove([path]);
+    await this.reload();
+  },
+  async savePlan({id, data}) {
+    const row = {name: data.name, description: data.description, budget: data.budget, starts_on: data.startsOn || null, ends_on: data.endsOn || null, active: data.active !== false};
+    if (id) must(await this.client.from('investment_plans').update(row).eq('id', id)); else must(await this.client.from('investment_plans').insert(row));
+    await this.reload();
+  },
+  async deletePlan(id) {
+    must(await this.client.from('investment_plans').delete().eq('id', id));
+    await this.reload();
+  },
+  /* ---- Cambios y devoluciones: la función SQL register_exchange mueve el stock y valida todo (atómica) ---- */
+  async registerExchange({saleId, reason, returned, delivered, method, customer, note}) {
+    const toRow = l => ({product_id: l.pid, size: l.size, qty: l.qty});
+    const ex = must(await this.client.rpc('register_exchange', {p_sale: saleId || null, p_reason: reason, p_returned: returned.map(toRow), p_delivered: (delivered || []).map(toRow),
+      p_method: method || null, p_customer: customer || '', p_note: note || ''}));
+    await this.reload();
+    return state.exchanges.find(e => e.id === ex.id) || {id: ex.id, num: ex.num, date: ex.created_at, saleId: ex.sale_id, saleNum: ex.sale_num, reason, customer: ex.customer, note: ex.note, difference: Number(ex.difference), method: ex.method, by: '', items: []};
+  },
+
+  async saveExpense({id, data}) {
+    const row = {plan_id: data.planId || null, kind: data.kind, concept: data.concept, payee: data.payee, amount: data.amount, spent_on: data.spentOn, notes: data.notes};
+    if (id) must(await this.client.from('plan_expenses').update(row).eq('id', id)); else must(await this.client.from('plan_expenses').insert(row));
+    await this.reload();
+  },
+  async deleteExpense(id) {
+    must(await this.client.from('plan_expenses').delete().eq('id', id));
     await this.reload();
   }
 };

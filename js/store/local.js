@@ -41,6 +41,63 @@ function ensureInitial() {
 
 function ensureDiscounts() { if (!Array.isArray(state.discounts)) state.discounts = []; }
 
+/* ---- Mobiliario y equipo: datos de ejemplo la primera vez y utilidades (mismas reglas que las tablas SQL) ---- */
+function ensureAssets() {
+  ['plans', 'assets', 'assetLog', 'expenses', 'exchanges'].forEach(k => { if (!Array.isArray(state[k])) state[k] = []; });
+  // el permiso de cambios y devoluciones se le da una vez a Vendedor y Cajero (si luego se quita, no vuelve)
+  if (!state.exchangesSeeded) {
+    state.exchangesSeeded = true;
+    (state.roles || []).forEach(r => { if (['vendedor', 'cajero'].includes(r.id) && !r.permissions.includes('exchanges.create')) r.permissions.push('exchanges.create'); });
+  }
+  if (!state.assetsSeeded) {
+    state.assetsSeeded = true;
+    if (!state.plans.length && !state.assets.length) seedAssets(state);
+  }
+  // gastos de ejemplo, una sola vez, cargados al primer plan
+  if (!state.expensesSeeded) {
+    state.expensesSeeded = true;
+    if (!state.expenses.length && state.plans.length) seedExpenses(state, state.plans[0].id);
+  }
+}
+function seedExpenses(s, planId) {
+  const now = new Date().toISOString();
+  [['empleado', 'Salario de septiembre', 'María López', 350, '2026-09-30'], ['empleado', 'Salario de septiembre', 'Carlos Pérez', 320, '2026-09-30'],
+   ['empleado', 'Salario de octubre', 'María López', 350, '2026-10-31'], ['empleado', 'Salario de octubre', 'Carlos Pérez', 320, '2026-10-31'],
+   ['etiquetas', 'Stickers autoadhesivos para precios', 'Papelería Central', 45, '2026-10-05'], ['materiales', 'Bolsas y empaques', 'Distribuidora Norte', 38.5, '2026-10-12']]
+    .forEach(([kind, concept, payee, amount, spentOn]) => s.expenses.push({id: uid(), planId, kind, concept, payee, amount, spentOn, notes: '', createdAt: now, updatedAt: now}));
+}
+function seedAssets(s) {
+  const now = new Date().toISOString(), plan = {id: uid(), name: 'Plan de inversión social 2026', description: 'Equipamiento de la tienda', budget: 6000, startsOn: '2026-01-01', endsOn: '2026-12-31', active: true, createdAt: now};
+  s.plans.push(plan);
+  [['Cámara de seguridad', 'Cámaras', 'Hikvision', 'DS-2CD', 4, 85.5, 'Sala de ventas', 'nuevo', plan.id],
+   ['Computadora de escritorio', 'Computadoras', 'Dell', 'OptiPlex 3000', 1, 520, 'Caja', 'bueno', plan.id],
+   ['Impresora de tickets', 'Impresoras', 'Epson', 'TM-T20III', 1, 180, 'Caja', 'bueno', plan.id],
+   ['Silla ejecutiva', 'Sillas', '', '', 6, 38, 'Sala de ventas', 'bueno', plan.id],
+   ['Espejo de pared', 'Espejos', '', '', 3, 45, 'Sala de ventas', 'nuevo', plan.id],
+   ['Escritorio de oficina', 'Muebles', '', '', 1, 210, 'Oficina', 'regular', plan.id],
+   ['Vitrina de exhibición', 'Estantes y vitrinas', '', '', 2, 320, 'Sala de ventas', 'bueno', plan.id],
+   ['Mesa de bodega', 'Muebles', '', '', 1, 90, 'Bodega', 'bueno', null]].forEach(([name, category, brand, model, quantity, unitCost, location, status, planId], i) => {
+    const a = {id: uid(), code: 'AF-' + pad(i + 1, 4), name, category, brand, model, serial: '', quantity, unitCost, acquiredOn: '2026-03-15', location, responsible: '', status, planId, notes: '', createdAt: now, updatedAt: now};
+    s.assets.push(a);
+    s.assetLog.push({id: uid(), assetId: a.id, code: a.code, name: a.name, kind: 'alta', detail: quantity + ' × ' + location, date: now, actor: 'Datos de ejemplo'});
+  });
+}
+const nextAssetCode = () => 'AF-' + pad(state.assets.reduce((m, a) => Math.max(m, parseInt((a.code.match(/(\d+)$/) || [])[1]) || 0), 0) + 1, 4);
+/* Lo que cambió entre dos versiones de un bien, en texto (igual que el trigger log_asset de la base de datos) */
+function assetChanges(o, n) {
+  const ch = [], none = (v, w) => v || w, st = k => (ASSET_STATUS[k] || {}).label || k, plan = id => (getPlan(id) || {}).name;
+  if (n.status !== o.status) ch.push(`Estado: ${st(o.status)} → ${st(n.status)}`);
+  if (n.location !== o.location) ch.push(`Ubicación: ${none(o.location, 'ninguna')} → ${none(n.location, 'ninguna')}`);
+  if (n.responsible !== o.responsible) ch.push(`Responsable: ${none(o.responsible, 'ninguno')} → ${none(n.responsible, 'ninguno')}`);
+  if (n.quantity !== o.quantity) ch.push(`Cantidad: ${o.quantity} → ${n.quantity}`);
+  if (n.unitCost !== o.unitCost) ch.push(`Costo unitario: $${o.unitCost} → $${n.unitCost}`);
+  if ((n.planId || null) !== (o.planId || null)) ch.push(`Plan: ${none(plan(o.planId), 'ninguno')} → ${none(plan(n.planId), 'ninguno')}`);
+  if (n.name !== o.name) ch.push(`Nombre: ${o.name} → ${n.name}`);
+  if (n.category !== o.category) ch.push(`Categoría: ${none(o.category, 'ninguna')} → ${none(n.category, 'ninguna')}`);
+  if (['serial', 'brand', 'model', 'acquiredOn', 'notes'].some(k => (n[k] || '') !== (o[k] || ''))) ch.push('Datos del bien actualizados');
+  return ch;
+}
+
 const CASHIER_ROLE = () => ({id: 'cajero', name: 'Cajero', description: 'Cobra, imprime tickets y elige qué vendedor realizó la venta', isSystem: false, permissions: ['inventory.view', 'sales.create', 'sales.view', 'sales.assign_seller']});
 const demoRoles = () => [
   {id: 'admin', name: 'Administrador', description: 'Acceso total al sistema', isSystem: true, permissions: PERMISSION_CATALOG.map(p => p.key)},
@@ -97,7 +154,7 @@ const LocalStore = {
   async signIn(roleId) { sessionStorage.setItem(LS_DEMO, roleId || 'admin'); },   // en demostración se elige el rol para probarlo
   async signOut() { sessionStorage.removeItem(LS_DEMO); },
   async init() {
-    state = loadLocal(); ensureRoles(); ensureUsers(); ensureInitial(); ensureDiscounts();
+    state = loadLocal(); ensureRoles(); ensureUsers(); ensureInitial(); ensureDiscounts(); ensureAssets();
     const v = sessionStorage.getItem(LS_DEMO);
     this._setUser(v && v !== '1' ? v : 'admin');
   },
@@ -168,9 +225,64 @@ const LocalStore = {
   async voidSale(id) {
     const s = state.sales.find(x => x.id === id);
     if (!s || s.status !== 'completada') throw new Error('La venta ya está anulada');
+    if (state.exchanges.some(e => e.saleId === id)) throw new Error('La venta tiene cambios o devoluciones registrados: no se puede anular');
     s.items.forEach(i => { const p = getProduct(i.pid); if (p) moveStock(p, i.size, i.qty, 'devolucion', 'Anulación V-' + pad(s.num, 4), s.id); });
     s.status = 'anulada'; s.voidedAt = new Date().toISOString();
     saveLocal();
+  },
+
+  /* ---- Cambios y devoluciones (mismas reglas que la función SQL register_exchange) ---- */
+  async registerExchange({saleId, reason, returned, delivered, method, customer, note}) {
+    if (!can('exchanges.create')) throw new Error('No tienes permiso para esta acción');
+    const R = EXCHANGE_REASONS[reason];
+    if (!R) throw new Error('Motivo inválido');
+    if (!Array.isArray(returned) || !returned.length) throw new Error('Indica qué devuelve el cliente');
+    delivered = delivered || [];
+    if (R.gives && !delivered.length) throw new Error('Indica qué se lleva el cliente a cambio');
+    if (!R.gives && delivered.length) throw new Error('Una devolución con reembolso no lleva producto a cambio');
+    const sale = saleId ? state.sales.find(s => s.id === saleId) : null;
+    if (saleId && !sale) throw new Error('La venta no existe');
+    if (sale && sale.status !== 'completada') throw new Error('La venta está anulada');
+    const snapshot = JSON.stringify(state);
+    try {
+      const num = state.exchanges.reduce((m, e) => Math.max(m, e.num), 0) + 1, tag = 'Cambio C-' + pad(num, 4), cond = reason.startsWith('danado') ? 'danado' : 'bueno', r2 = n => Math.round(n * 100) / 100;
+      const items = [], ids = []; let ret = 0, del = 0;
+      for (const l of returned) {
+        const p = getProduct(l.pid), q = Number(l.qty);
+        if (!p) throw new Error('Un producto ya no existe');
+        if (!Number.isInteger(q) || q <= 0) throw new Error('Cantidad inválida');
+        ids.push(p.id);
+        let price;
+        if (sale) {
+          const rows = sale.items.filter(i => i.pid === p.id && i.size === l.size), sold = rows.reduce((a, i) => a + i.qty, 0);
+          if (!sold) throw new Error(`El artículo ${p.name} talla ${l.size} no está en esa venta`);
+          const back = returnedBefore(sale.id, p.id, l.size);
+          if (q + back > sold) throw new Error(`De ${p.name} talla ${l.size} se vendieron ${sold} y ya se devolvieron ${back} (quedan ${sold - back})`);
+          price = r2(rows.reduce((a, i) => a + i.price * i.qty, 0) / sold);
+        } else price = priceOf(p).price;
+        items.push({dir: 'devuelto', pid: p.id, sku: p.sku, name: p.name, size: l.size, qty: q, price, condition: cond});
+        ret += price * q;
+        moveStock(p, l.size, q, 'devolucion', tag + ': devuelve', '');
+        if (cond === 'danado') moveStock(p, l.size, -q, 'danado', tag + ': producto dañado', '');
+      }
+      for (const l of delivered) {
+        const p = getProduct(l.pid), q = Number(l.qty);
+        if (!p) throw new Error('Un producto ya no existe');
+        if (!Number.isInteger(q) || q <= 0) throw new Error('Cantidad inválida');
+        if (R.same && !ids.includes(p.id)) throw new Error('En este tipo de cambio el producto entregado debe ser el mismo que se devuelve');
+        const price = priceOf(p).price;
+        items.push({dir: 'entregado', pid: p.id, sku: p.sku, name: p.name, size: l.size, qty: q, price, condition: null});
+        del += price * q;
+        moveStock(p, l.size, -q, 'cambio', tag + ': entrega', '');
+      }
+      const diff = r2(del - ret);
+      if (diff !== 0 && !PAY_METHODS.includes(method)) throw new Error('Indica cómo se paga o se devuelve la diferencia de ' + money(Math.abs(diff)));
+      const ex = {id: 'X' + uid(), num, date: new Date().toISOString(), saleId: sale ? sale.id : null, saleNum: sale ? sale.num : null, reason, customer: String(customer || '').trim().slice(0, 120),
+        note: String(note || '').trim().slice(0, 200), difference: diff, method: diff !== 0 ? method : null, by: this.user ? this.user.name : '', items};
+      state.exchanges.unshift(ex);
+      saveLocal();
+      return ex;
+    } catch (e) { state = JSON.parse(snapshot); throw e; }
   },
 
   async saveSettings({storeName, threshold, sizes}) {
@@ -183,6 +295,8 @@ const LocalStore = {
   async variantReport() {
     const r2 = n => Math.round(n * 100) / 100, sold = {};
     state.sales.filter(s => s.status === 'completada').forEach(s => s.items.forEach(i => { const k = i.pid + '|' + i.size; sold[k] = (sold[k] || 0) + i.qty; }));
+    // "Vendidos" neto: menos lo devuelto y más lo entregado a cambio
+    state.exchanges.forEach(e => e.items.forEach(i => { const k = i.pid + '|' + i.size; sold[k] = (sold[k] || 0) + (i.dir === 'devuelto' ? -i.qty : i.qty); }));
     const rows = [];
     state.products.forEach(p => Object.keys(p.stock).forEach(size => {
       const stock = p.stock[size] || 0, status = stock === 0 ? 'Agotado' : stock <= minOf(p) ? 'Stock bajo' : 'Disponible';
@@ -265,6 +379,92 @@ const LocalStore = {
     saveLocal();
   },
 
+  /* ---- Mobiliario y equipo y planes de inversión ---- */
+  _needAssets() { if (!can('assets.manage')) throw new Error('No tienes permiso para esta acción'); },
+  _logAsset(a, kind, detail) {
+    state.assetLog.unshift({id: uid(), assetId: a.id, code: a.code, name: a.name, kind, detail, date: new Date().toISOString(), actor: this.user ? this.user.name : ''});
+    if (state.assetLog.length > 1000) state.assetLog.length = 1000;
+  },
+  async saveAsset({id, data, image}) {
+    this._needAssets();
+    const name = String(data.name || '').trim(), qty = Number(data.quantity), cost = Number(data.unitCost);
+    if (name.length < 2 || name.length > 100) throw new Error('El nombre debe tener entre 2 y 100 caracteres');
+    if (!Number.isInteger(qty) || qty < 0) throw new Error('La cantidad debe ser un número entero, 0 o mayor');
+    if (!(cost >= 0)) throw new Error('El costo unitario no puede ser negativo');
+    if (!ASSET_STATUS[data.status]) throw new Error('Estado inválido');
+    if (data.planId && !getPlan(data.planId)) throw new Error('El plan elegido ya no existe');
+    const t = k => String(data[k] || '').trim();
+    const fields = {name, category: t('category'), brand: t('brand'), model: t('model'), serial: t('serial'), quantity: qty, unitCost: Math.round(cost * 100) / 100, acquiredOn: data.acquiredOn || null,
+      location: t('location'), responsible: t('responsible'), status: data.status, planId: data.planId || null, notes: t('notes')};
+    if (fields.notes.length > 500) throw new Error('Las observaciones no pueden superar los 500 caracteres');
+    let a = id ? getAsset(id) : null;
+    if (id && !a) throw new Error('El bien ya no existe');
+    if (a) {
+      const old = {...a}; Object.assign(a, fields, {updatedAt: new Date().toISOString()});
+      const ch = assetChanges(old, a);
+      if (ch.length) this._logAsset(a, a.status === 'baja' && old.status !== 'baja' ? 'baja' : 'cambio', ch.join('; '));
+    } else {
+      const code = t('code') || nextAssetCode();
+      if (state.assets.some(x => x.code.toLowerCase() === code.toLowerCase())) throw new Error('Ya existe un bien con ese código');
+      a = {id: uid(), code, ...fields, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()};
+      state.assets.push(a);
+      this._logAsset(a, 'alta', a.quantity + ' × ' + (a.location || 'sin ubicación'));
+    }
+    if (image === 'remove') delete a.image;
+    else if (image && image.dataUrl) a.image = image.dataUrl;
+    saveLocal();
+  },
+  async deleteAsset(id) {
+    this._needAssets();
+    const a = getAsset(id); if (!a) throw new Error('El bien ya no existe');
+    this._logAsset({id: null, code: a.code, name: a.name}, 'eliminado', a.quantity + ' × ' + (a.location || 'sin ubicación'));
+    state.assets = state.assets.filter(x => x.id !== id);
+    saveLocal();
+  },
+  async savePlan({id, data}) {
+    this._needAssets();
+    const name = String(data.name || '').trim(), budget = Number(data.budget), desc = String(data.description || '').trim();
+    if (name.length < 2 || name.length > 80) throw new Error('El nombre debe tener entre 2 y 80 caracteres');
+    if (!(budget >= 0)) throw new Error('El presupuesto no puede ser negativo');
+    if (desc.length > 300) throw new Error('La descripción no puede superar los 300 caracteres');
+    if (data.startsOn && data.endsOn && data.endsOn < data.startsOn) throw new Error('La fecha final no puede ser anterior a la inicial');
+    if (state.plans.some(p => p.id !== id && p.name.trim().toLowerCase() === name.toLowerCase())) throw new Error('Ya existe un plan con ese nombre');
+    const p = id ? getPlan(id) : null;
+    if (id && !p) throw new Error('El plan ya no existe');
+    const fields = {name, description: desc, budget: Math.round(budget * 100) / 100, startsOn: data.startsOn || null, endsOn: data.endsOn || null, active: data.active !== false};
+    if (p) Object.assign(p, fields); else state.plans.push({id: uid(), ...fields, createdAt: new Date().toISOString()});
+    saveLocal();
+  },
+  async deletePlan(id) {
+    this._needAssets();
+    const p = getPlan(id); if (!p) throw new Error('El plan ya no existe');
+    state.assets.filter(a => a.planId === id).forEach(a => { this._logAsset(a, 'cambio', 'Plan: ' + p.name + ' → ninguno (plan eliminado)'); a.planId = null; });
+    state.plans = state.plans.filter(x => x.id !== id);
+    state.expenses.forEach(e => { if (e.planId === id) e.planId = null; });   // los gastos se conservan, sin plan
+    saveLocal();
+  },
+  async saveExpense({id, data}) {
+    if (!can('expenses.manage')) throw new Error('No tienes permiso para esta acción');
+    const concept = String(data.concept || '').trim(), amount = Number(data.amount), t = k => String(data[k] || '').trim();
+    if (concept.length < 2 || concept.length > 120) throw new Error('El concepto debe tener entre 2 y 120 caracteres');
+    if (!(amount > 0)) throw new Error('El monto debe ser mayor a 0');
+    if (!EXPENSE_KINDS[data.kind]) throw new Error('Tipo de gasto inválido');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data.spentOn || '')) throw new Error('Indica la fecha del gasto');
+    if (data.planId && !getPlan(data.planId)) throw new Error('El plan elegido ya no existe');
+    if (t('payee').length > 80 || t('notes').length > 300) throw new Error('Hay un texto demasiado largo');
+    const fields = {planId: data.planId || null, kind: data.kind, concept, payee: t('payee'), amount: Math.round(amount * 100) / 100, spentOn: data.spentOn, notes: t('notes'), updatedAt: new Date().toISOString()};
+    const x = id ? state.expenses.find(e => e.id === id) : null;
+    if (id && !x) throw new Error('El gasto ya no existe');
+    if (x) Object.assign(x, fields); else state.expenses.push({id: uid(), ...fields, createdAt: new Date().toISOString()});
+    saveLocal();
+  },
+  async deleteExpense(id) {
+    if (!can('expenses.manage')) throw new Error('No tienes permiso para esta acción');
+    if (!state.expenses.some(e => e.id === id)) throw new Error('El gasto ya no existe');
+    state.expenses = state.expenses.filter(e => e.id !== id);
+    saveLocal();
+  },
+
   _needAdminRole() { if (this.user.role !== 'admin') throw new Error('Solo un administrador puede gestionar roles'); },
   _checkRole({name, description, permissions}, exceptId) {
     const n = String(name || '').trim();
@@ -306,13 +506,13 @@ const LocalStore = {
   },
 
   /* Solo existen en modo local (los usuarios y roles se conservan al reiniciar los datos) */
-  async resetDemo() { const {users, roles, cashierSeeded} = state; state = blank(); seed(state); Object.assign(state, {users, roles, cashierSeeded}); ensureRoles(); saveLocal(); },
-  async clearAll() { const {settings, users, roles, cashierSeeded} = state; state = blank(); Object.assign(state, {settings: {...settings, nextSale: 1}, users, roles, cashierSeeded}); ensureRoles(); saveLocal(); },
+  async resetDemo() { const {users, roles, cashierSeeded} = state; state = blank(); seed(state); Object.assign(state, {users, roles, cashierSeeded}); ensureRoles(); ensureAssets(); saveLocal(); },
+  async clearAll() { const {settings, users, roles, cashierSeeded} = state; state = blank(); Object.assign(state, {settings: {...settings, nextSale: 1}, users, roles, cashierSeeded, assetsSeeded: true, expensesSeeded: true}); ensureRoles(); saveLocal(); },
   async restore(d) {
     const {users, roles} = state;
     state = {...blank(), ...d, settings: {...blank().settings, ...(d.settings || {})}};
     if (!Array.isArray(d.users) || !d.users.length) state.users = users;
     if (!Array.isArray(d.roles) || !d.roles.length) state.roles = roles;
-    ensureRoles(); ensureUsers(); ensureInitial(); ensureDiscounts(); saveLocal();
+    ensureRoles(); ensureUsers(); ensureInitial(); ensureDiscounts(); ensureAssets(); saveLocal();
   }
 };

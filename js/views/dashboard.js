@@ -14,7 +14,7 @@ function renderDashboard() {
   const dayTot = days.map(d => sum(sales.filter(s => dayKey(s.date) === dayKey(d)), s => s.total)), dayMax = Math.max(1, ...dayTot);
   const since = new Date(); since.setDate(since.getDate() - 30);
   const top = {}; sales.filter(s => new Date(s.date) >= since).forEach(s => s.items.forEach(i => { const t = top[i.sku] || (top[i.sku] = {name: i.name, qty: 0, rev: 0}); t.qty += i.qty; t.rev += i.qty * i.price; }));
-  const topRows = Object.values(top).sort((a, b) => b.qty - a.qty).slice(0, 5);
+  const topRows = Object.values(top).sort((a, b) => b.qty - a.qty || b.rev - a.rev).slice(0, 10);   // del 1 al 10
 
   $('#view').innerHTML = `
   <div class="grid kpis">
@@ -31,6 +31,6 @@ function renderDashboard() {
     <div class="card"><h3>Alertas de reposición (${alerts.length})</h3>
       ${alerts.length ? `<div class="tablewrap" style="border:0"><table><tbody>${alerts.slice(0, 8).map(a => `<tr><td><div class="name">${esc(a.p.name)}</div><div class="meta">${[a.p.brand, a.p.sku].filter(Boolean).map(esc).join(' · ')}</div></td><td class="num">${a.t} pares</td><td><span class="badge ${a.st.cls}">${a.st.label}</span></td><td class="right"><button class="btn sm" data-action="addStock" data-id="${a.p.id}">Reponer</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Todo el inventario está sobre el mínimo</div>'}</div>
     <div class="card"><h3>Más vendidos · 30 días</h3>
-      ${topRows.length ? `<div class="tablewrap" style="border:0"><table><tbody>${topRows.map((t, i) => `<tr><td class="muted num">${i + 1}</td><td class="name">${esc(t.name)}</td><td class="num">${t.qty} pares</td><td class="num right">${money(t.rev)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Aún no hay ventas</div>'}</div>
+      ${topRows.length ? `<div class="tablewrap" style="border:0"><table><tbody>${topRows.map((t, i) => `<tr><td class="muted num">${i + 1}</td><td class="name">${esc(t.name)}</td><td class="num">${t.qty} ${t.qty === 1 ? 'par' : 'pares'}</td><td class="num right">${money(t.rev)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Aún no hay ventas</div>'}</div>
   </div>`;
 }

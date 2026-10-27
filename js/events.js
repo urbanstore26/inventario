@@ -17,6 +17,10 @@ document.addEventListener('submit', e => {
     else if (f.dataset.form === 'user-pass') await saveUserPassword(f);
     else if (f.dataset.form === 'role') await saveRole(f);
     else if (f.dataset.form === 'discount') await saveDiscountForm(f);
+    else if (f.dataset.form === 'asset') await saveAssetForm(f);
+    else if (f.dataset.form === 'plan') await savePlanForm(f);
+    else if (f.dataset.form === 'exchange') await saveExchangeForm();
+    else if (f.dataset.form === 'expense') await saveExpenseForm(f);
     else if (f.dataset.form === 'settings') {
       const sizes = sortSizes([...new Set(f.elements.sizes.value.split(',').map(s => s.trim()).filter(Boolean))]);
       if (!sizes.length) throw new Error('Indica al menos una talla');
@@ -28,11 +32,20 @@ document.addEventListener('submit', e => {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.form && t.form.dataset.form === 'discount' && (t.name === 'dkind' || t.name === 'dvalue')) drawPick();   // vista previa de precios
+  if (t.dataset && t.dataset.xf === 'qty') return xfField(t);      // cambios y devoluciones: cantidades
+  if (t.dataset && t.dataset.xs) return xfSaleQty(t);
   switch (t.id) {
     case 'invQ': ui.inv.q = t.value; drawInv(); break;
     case 'movQ': ui.mov.q = t.value; drawMov(); break;
     case 'usrQ': ui.usr.q = t.value; drawUsers(); break;
     case 'dscQ': ui.dsc.q = t.value; drawDiscounts(); break;
+    case 'astQ': ui.ast.q = t.value; drawAssetRows(); break;
+    case 'evQ': ui.ast.evq = t.value; drawHistoryRows(); break;
+    case 'exQ': ui.ast.exq = t.value; drawExpenseRows(); break;
+    case 'xcQ': ui.exc.q = t.value; drawExchangeRows(); break;
+    case 'xfCustomer': if (xf) xf.customer = t.value; break;
+    case 'xfSq': case 'xfDate': case 'xfFrom': case 'xfTo': xfFind(t); break;
+    case 'xfNote': if (xf) xf.note = t.value; break;
     case 'pickQ': drawPick(); break;
     case 'posQ': pos.q = t.value; drawPosResults(); break;
     case 'posDisc': pos.discount = t.value; updatePosTotals(); break;
@@ -43,7 +56,7 @@ document.addEventListener('input', e => {
   }
 });
 document.addEventListener('change', e => {
-  const t = e.target, map = {invCat: ['inv', 'cat'], invBrand: ['inv', 'brand'], invStatus: ['inv', 'status'], movType: ['mov', 'type'], salFrom: ['sal', 'from'], salTo: ['sal', 'to'], salMethod: ['sal', 'method'], salStatus: ['sal', 'status']};
+  const t = e.target, map = {invCat: ['inv', 'cat'], invBrand: ['inv', 'brand'], invStatus: ['inv', 'status'], movType: ['mov', 'type'], salFrom: ['sal', 'from'], salTo: ['sal', 'to'], salFromT: ['sal', 'fromT'], salToT: ['sal', 'toT'], salMethod: ['sal', 'method'], salStatus: ['sal', 'status']};
   if (map[t.id]) { ui[map[t.id][0]][map[t.id][1]] = t.value; ({inv: drawInv, mov: drawMov, sal: drawSales})[map[t.id][0]](); }
   else if (t.id === 'mvProduct') { ui.mov.pid = t.value; fillMoveSizes(); }
   else if (t.id === 'posMethod') { pos.method = t.value; drawCart(); }
@@ -51,7 +64,18 @@ document.addEventListener('change', e => {
   else if (t.dataset && t.dataset.pick) pickToggle(t.dataset.pick, t.checked);
   else if (t.id === 'pickCat') drawPick();
   else if (t.id === 'tkWidth') setTicketWidth(t.value);
+  else if (t.dataset && t.dataset.xf) xfField(t);
+  else if (['xfReason', 'xfMethod'].includes(t.id)) xfChoose(t.id, t.value);
+  else if (t.id === 'xcReason') { ui.exc.reason = t.value; drawExchangeRows(); }
   else if (t.id === 'pImage') run(null, () => pickProductImage(t));
+  else if (t.id === 'aImage') run(null, () => pickAssetImage(t));
+  else if (t.id === 'astCat') { ui.ast.cat = t.value; drawAssetRows(); }
+  else if (t.id === 'astStatus') { ui.ast.status = t.value; drawAssetRows(); }
+  else if (t.id === 'astPlan') { ui.ast.plan = t.value; drawAssetRows(); }
+  else if (t.id === 'evKind') { ui.ast.evkind = t.value; drawHistoryRows(); }
+  else if (t.id === 'exKind') { ui.ast.exkind = t.value; drawExpenseRows(); }
+  else if (t.id === 'exPlan') { ui.ast.explan = t.value; drawExpenseRows(); }
+  else if (t.id === 'exMonth') { ui.ast.exmonth = t.value; drawExpenseRows(); }
   else if (t.id === 'restoreFile' && t.files[0]) {
     const rd = new FileReader();
     rd.onload = () => {
