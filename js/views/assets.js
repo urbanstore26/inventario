@@ -5,6 +5,15 @@
    Pestañas: Bienes · Gastos y pagos (solo con permiso) · Planes de inversión · Historial (lo anota el sistema solo). */
 
 let assetImage = null;   // foto pendiente del formulario: null (sin cambios) | 'remove' | {blob, dataUrl}
+let assetInvoice = null; // factura pendiente: null (sin cambios) | 'remove' | {blob, name, type, dataUrl}
+let assetEditing = null; // bien que se está editando (para mostrar su factura actual)
+
+/* Factura del bien (PDF o imagen). En Supabase vive en un bucket privado (invoicePath); en la demostración, dentro del bien (invoice). */
+const hasInvoice = a => !!(a.invoicePath || a.invoice);
+const invoiceName = a => (a.invoice && a.invoice.name) || a.invoiceName || 'factura';
+const invoiceIsImage = a => a.invoice ? /^image\//.test(a.invoice.type) : /\.(jpe?g|png|webp)$/i.test(a.invoiceName || '');
+const cleanFileName = n => String(n || 'factura').replace(/[^\wáéíóúñÁÉÍÓÚÑ.() -]/g, '_').slice(-120);
+const DOC_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>';
 
 function renderAssets() {
   const tabs = [['bienes', 'Bienes'], ...(can('expenses.view') ? [['gastos', 'Gastos y pagos']] : []), ['planes', 'Planes de inversión'], ['historial', 'Historial']];
@@ -68,7 +77,7 @@ function drawAssetRows() {
       const st = ASSET_STATUS[a.status] || {label: a.status, cls: 'b-neutral'}, plan = getPlan(a.planId);
       const img = a.image ? `<button class="thumb-btn" data-action="viewAssetImage" data-id="${esc(a.id)}" aria-label="Ampliar foto de ${esc(a.name)}">${assetThumb(a, 'md')}</button>` : assetThumb(a, 'md');
       return `<tr><td class="num">${esc(a.code)}</td>
-        <td><div class="prod">${img}<div><div class="name">${esc(a.name)}</div><div class="meta">${[a.category, a.brand, a.model, a.serial && 'N.º serie ' + a.serial].filter(Boolean).map(esc).join(' · ')}</div><div class="meta">${plan ? 'Plan: ' + esc(plan.name) : 'Sin plan'}</div></div></div></td>
+        <td><div class="prod">${img}<div><div class="name">${esc(a.name)}</div><div class="meta">${[a.category, a.brand, a.model, a.serial && 'N.º serie ' + a.serial].filter(Boolean).map(esc).join(' · ')}</div><div class="meta">${plan ? 'Plan: ' + esc(plan.name) : 'Sin plan'}</div>${hasInvoice(a) ? `<div class="meta"><button class="linkbtn" data-action="viewInvoice" data-id="${esc(a.id)}">Ver factura</button></div>` : ''}</div></div></td>
         <td>${esc(a.location) || '<span class="muted">—</span>'}${a.responsible ? `<div class="meta">${esc(a.responsible)}</div>` : ''}</td>
         <td class="num right"><b>${a.quantity}</b></td>
         <td class="num right">${money(assetValue(a))}<div class="meta">${money(a.unitCost)} c/u</div></td>
@@ -89,7 +98,7 @@ function viewAssetImage(id) {
 function assetForm(id) {
   const a = id ? getAsset(id) : {code: '', name: '', category: '', brand: '', model: '', serial: '', quantity: 1, unitCost: '', acquiredOn: '', location: '', responsible: '', status: 'nuevo', planId: '', notes: '', image: ''};
   if (id && !a) return;
-  assetImage = null;
+  assetImage = null; assetInvoice = null; assetEditing = id ? a : null;
   const locations = [...new Set(state.assets.map(x => x.location).filter(Boolean))].sort((x, y) => x.localeCompare(y));
   const cats = [...new Set([...ASSET_CATEGORIES, ...state.assets.map(x => x.category).filter(Boolean)])].sort((x, y) => x.localeCompare(y));
   openModal(`<h2>${id ? 'Editar bien' : 'Nuevo bien'}</h2>
@@ -105,6 +114,18 @@ function assetForm(id) {
           <button type="button" class="btn sm" data-action="removeAssetImage">Quitar foto</button>
         </div>
       </div>
+    </div>
+    <div class="inv-row">
+      <div class="photo-ctrl">
+        <b>Factura (PDF o imagen)</b>
+        <span class="muted">PDF, JPG, PNG o WEBP. Hasta ${store.mode === 'local' ? '1.5 MB en el modo demostración' : '10 MB'}. Solo la ven quienes pueden ver el mobiliario.</span>
+        <div class="acts" style="justify-content:flex-start">
+          ${isTouchDevice() ? `<label class="btn sm primary" style="cursor:pointer">Fotografiar factura<input id="aInvCam" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden></label>` : ''}
+          <label class="btn sm" style="cursor:pointer">Adjuntar archivo<input id="aInvoice" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden></label>
+          <button type="button" class="btn sm" data-action="removeInvoice">Quitar factura</button>
+        </div>
+      </div>
+      <div id="aInvPreview" class="inv-prev"></div>
     </div>
     <div class="form-grid">
       <label class="f">Código${id ? '' : ' (opcional)'}<input name="acode" maxlength="30" value="${esc(a.code)}"${id ? ' disabled' : ''} placeholder="Automático (AF-0001…)"></label>
@@ -126,6 +147,43 @@ function assetForm(id) {
     <datalist id="dlAstLoc">${locations.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
     <div class="foot"><button type="button" class="btn" data-action="closeModal">Cancelar</button><button class="btn primary">Guardar</button></div>
   </form>`, true);
+  drawInvoicePreview();
+}
+
+function drawInvoicePreview() {
+  const el = $('#aInvPreview'); if (!el) return;
+  const chip = (name, note) => `<span class="inv-chip">${DOC_ICON}<span><b>${esc(name)}</b><small>${esc(note)}</small></span></span>`;
+  el.innerHTML = assetInvoice === 'remove' ? '<span class="muted">Se quitará al guardar</span>'
+    : assetInvoice ? chip(assetInvoice.name, 'Nueva: se guarda al pulsar Guardar')
+    : assetEditing && hasInvoice(assetEditing) ? chip(invoiceName(assetEditing), 'Factura actual') : '<span class="muted">Sin factura adjunta</span>';
+}
+/* Factura elegida: PDF tal cual; imagen reducida a 1800 px (se sigue leyendo el texto) y comprimida */
+async function pickInvoice(input) {
+  const file = input.files[0]; input.value = '';
+  if (!file) return;
+  const local = store.mode === 'local', max = local ? 1.5 * 1024 * 1024 : 10 * 1024 * 1024, limit = local ? '1.5 MB en el modo demostración' : '10 MB';
+  const isPdf = file.type === 'application/pdf';
+  if (!isPdf && !/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error('Adjunta un PDF o una imagen JPG, PNG o WEBP');
+  let inv;
+  if (isPdf) {
+    if (file.size > max) throw new Error(`El PDF pesa ${(file.size / 1048576).toFixed(1)} MB; el máximo es ${limit}`);
+    inv = {blob: file, name: cleanFileName(file.name), type: 'application/pdf', dataUrl: local ? await blobToDataURL(file) : ''};
+  } else {
+    const img = await prepareImage(file, 1800);
+    if (img.blob.size > max) throw new Error(`La imagen pesa ${(img.blob.size / 1048576).toFixed(1)} MB; el máximo es ${limit}`);
+    inv = {blob: img.blob, name: cleanFileName(file.name).replace(/\.[^.]+$/, '') + '.jpg', type: 'image/jpeg', dataUrl: img.dataUrl};
+  }
+  assetInvoice = inv; drawInvoicePreview();
+}
+function removeInvoiceDraft() { assetInvoice = 'remove'; drawInvoicePreview(); }
+
+/* Ver la factura: en Supabase con un enlace temporal (el bucket es privado); en la demostración, desde el propio navegador */
+async function viewInvoice(id) {
+  const a = getAsset(id); if (!a || !hasInvoice(a)) return;
+  const url = await store.invoiceUrl(a), img = invoiceIsImage(a);
+  openModal(`<h2>Factura</h2><p class="muted" style="margin-top:-12px">${esc(a.code)} · ${esc(a.name)} · ${esc(invoiceName(a))}</p>
+    ${img ? `<img class="big-photo" src="${esc(url)}" alt="Factura de ${esc(a.name)}">` : `<div class="inv-pdf">${DOC_ICON}<b>PDF</b><span>${esc(invoiceName(a))}</span></div>`}
+    <div class="foot"><button class="btn" data-action="closeModal">Cerrar</button><a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${img ? 'Abrir en otra pestaña' : 'Abrir PDF'}</a></div>`);
 }
 
 async function pickAssetImage(input) {
@@ -147,8 +205,8 @@ async function saveAssetForm(form) {
   const data = {code: id ? undefined : el.acode.value.trim(), name: el.aname.value.trim(), category: el.acat.value.trim(), brand: el.abrand.value.trim(), model: el.amodel.value.trim(),
     serial: el.aserial.value.trim(), quantity: qty, unitCost: Math.round(cost * 100) / 100, acquiredOn: el.adate.value || null, location: el.aloc.value.trim(),
     responsible: el.aresp.value.trim(), status: el.astatus.value, planId: el.aplan.value || null, notes: el.anotes.value.trim()};
-  await store.saveAsset({id: id || null, data, image: assetImage});
-  assetImage = null;
+  await store.saveAsset({id: id || null, data, image: assetImage, invoice: assetInvoice});
+  assetImage = null; assetInvoice = null; assetEditing = null;
   closeModal(); toast('Bien guardado'); refresh();
 }
 async function removeAsset(id) {
@@ -248,10 +306,10 @@ function drawHistoryRows() {
 
 /* ---------- Exportar ---------- */
 function exportAssets() {
-  const rows = [['Código', 'Bien', 'Categoría', 'Marca', 'Modelo', 'N.º serie', 'Cantidad', 'Costo unitario', 'Valor', 'Fecha de adquisición', 'Ubicación', 'Responsable', 'Estado', 'Plan de inversión', 'Observaciones']];
+  const rows = [['Código', 'Bien', 'Categoría', 'Marca', 'Modelo', 'N.º serie', 'Cantidad', 'Costo unitario', 'Valor', 'Fecha de adquisición', 'Ubicación', 'Responsable', 'Estado', 'Plan de inversión', 'Factura adjunta', 'Observaciones']];
   [...state.assets].sort((a, b) => a.code.localeCompare(b.code, 'es', {numeric: true})).forEach(a => {
     const plan = getPlan(a.planId);
-    rows.push([a.code, a.name, a.category, a.brand, a.model, a.serial, a.quantity, a.unitCost, assetValue(a), a.acquiredOn || '', a.location, a.responsible, (ASSET_STATUS[a.status] || {}).label || a.status, plan ? plan.name : '', a.notes]);
+    rows.push([a.code, a.name, a.category, a.brand, a.model, a.serial, a.quantity, a.unitCost, assetValue(a), a.acquiredOn || '', a.location, a.responsible, (ASSET_STATUS[a.status] || {}).label || a.status, plan ? plan.name : '', hasInvoice(a) ? 'Sí' : 'No', a.notes]);
   });
   download(`mobiliario-y-equipo-${dayKey(new Date())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
 }

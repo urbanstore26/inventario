@@ -52,6 +52,8 @@ const ACTIONS = {
   deleteAsset: el => removeAsset(el.dataset.id),
   viewAssetImage: el => viewAssetImage(el.dataset.id),
   removeAssetImage,
+  removeInvoice: removeInvoiceDraft,
+  viewInvoice: el => run(null, () => viewInvoice(el.dataset.id)),
   newPlan: () => planForm(),
   editPlan: el => planForm(el.dataset.id),
   deletePlan: el => removePlan(el.dataset.id),

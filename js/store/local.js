@@ -385,7 +385,17 @@ const LocalStore = {
     state.assetLog.unshift({id: uid(), assetId: a.id, code: a.code, name: a.name, kind, detail, date: new Date().toISOString(), actor: this.user ? this.user.name : ''});
     if (state.assetLog.length > 1000) state.assetLog.length = 1000;
   },
-  async saveAsset({id, data, image}) {
+  /* Factura dentro del propio bien (solo demostración). Devuelve el texto para el historial. */
+  _applyInvoice(a, invoice) {
+    if (invoice === 'remove' && a.invoice) { delete a.invoice; return 'Factura quitada'; }
+    if (invoice && invoice !== 'remove' && invoice.dataUrl) { const had = !!a.invoice; a.invoice = {name: invoice.name, type: invoice.type, dataUrl: invoice.dataUrl}; return had ? 'Factura reemplazada' : 'Factura adjuntada'; }
+    return '';
+  },
+  async invoiceUrl(a) {
+    if (!a.invoice) throw new Error('Este bien no tiene factura');
+    return URL.createObjectURL(await (await fetch(a.invoice.dataUrl)).blob());
+  },
+  async saveAsset({id, data, image, invoice}) {
     this._needAssets();
     const name = String(data.name || '').trim(), qty = Number(data.quantity), cost = Number(data.unitCost);
     if (name.length < 2 || name.length > 100) throw new Error('El nombre debe tener entre 2 y 100 caracteres');
@@ -401,14 +411,16 @@ const LocalStore = {
     if (id && !a) throw new Error('El bien ya no existe');
     if (a) {
       const old = {...a}; Object.assign(a, fields, {updatedAt: new Date().toISOString()});
-      const ch = assetChanges(old, a);
+      const ch = assetChanges(old, a), inv = this._applyInvoice(a, invoice);
+      if (inv) ch.push(inv);
       if (ch.length) this._logAsset(a, a.status === 'baja' && old.status !== 'baja' ? 'baja' : 'cambio', ch.join('; '));
     } else {
       const code = t('code') || nextAssetCode();
       if (state.assets.some(x => x.code.toLowerCase() === code.toLowerCase())) throw new Error('Ya existe un bien con ese código');
       a = {id: uid(), code, ...fields, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()};
       state.assets.push(a);
-      this._logAsset(a, 'alta', a.quantity + ' × ' + (a.location || 'sin ubicación'));
+      this._applyInvoice(a, invoice);
+      this._logAsset(a, 'alta', a.quantity + ' × ' + (a.location || 'sin ubicación') + (a.invoice ? ' · con factura' : ''));
     }
     if (image === 'remove') delete a.image;
     else if (image && image.dataUrl) a.image = image.dataUrl;

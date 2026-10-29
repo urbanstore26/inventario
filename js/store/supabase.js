@@ -3,6 +3,7 @@
    La lógica de stock y ventas vive en funciones SQL atómicas (supabase/migrations). */
 
 const IMG_BUCKET = 'product-images';
+const INV_BUCKET = 'asset-invoices';   // privado: facturas de los bienes
 
 function friendlyError(error) {
   const msg = (error && error.message) || String(error);
@@ -111,7 +112,7 @@ const SupabaseStore = {
       plans: aerr ? [] : (plansRes.data || []).map(r => ({id: r.id, name: r.name, description: r.description, budget: Number(r.budget), startsOn: r.starts_on, endsOn: r.ends_on, active: r.active, createdAt: r.created_at})),
       assets: aerr ? [] : (assetsRes.data || []).map(r => ({id: r.id, code: r.code, name: r.name, category: r.category, brand: r.brand, model: r.model, serial: r.serial, quantity: r.quantity, unitCost: Number(r.unit_cost),
         acquiredOn: r.acquired_on, location: r.location, responsible: r.responsible, status: r.status, planId: r.plan_id, notes: r.notes, createdAt: r.created_at, updatedAt: r.updated_at,
-        imagePath: r.image_path, image: r.image_path ? this.publicUrl(r.image_path) : ''})),
+        imagePath: r.image_path, image: r.image_path ? this.publicUrl(r.image_path) : '', invoicePath: r.invoice_path, invoiceName: r.invoice_name || ''})),
       assetLog: aerr ? [] : (eventsRes.data || []).map(r => ({id: r.id, assetId: r.asset_id, code: r.asset_code, name: r.asset_name, kind: r.kind, detail: r.detail, date: r.created_at, actor: r.actor_name})),
       exchanges: exchangesRes.error ? [] : (exchangesRes.data || []).map(r => ({id: r.id, num: r.num, date: r.created_at, saleId: r.sale_id, saleNum: r.sale_num, reason: r.reason, customer: r.customer, note: r.note,
         difference: Number(r.difference), method: r.method, by: r.created_name,
@@ -283,12 +284,19 @@ const SupabaseStore = {
   },
 
   /* ---- Mobiliario y equipo y planes de inversión: tablas con RLS; el historial lo escribe un trigger ---- */
-  async saveAsset({id, data, image}) {
+  /* La factura está en un bucket privado: se abre con un enlace temporal (10 minutos) */
+  async invoiceUrl(a) {
+    if (!a.invoicePath) throw new Error('Este bien no tiene factura');
+    const {data, error} = await this.client.storage.from(INV_BUCKET).createSignedUrl(a.invoicePath, 600);
+    if (error) throw new Error(friendlyError(error));
+    return data.signedUrl;
+  },
+  async saveAsset({id, data, image, invoice}) {
     const c = this.client;
     const row = {name: data.name, category: data.category, brand: data.brand, model: data.model, serial: data.serial, quantity: data.quantity, unit_cost: data.unitCost,
       acquired_on: data.acquiredOn || null, location: data.location, responsible: data.responsible, status: data.status, plan_id: data.planId || null, notes: data.notes};
     if (!id && data.code) row.code = data.code;   // sin código, la base genera AF-0001, AF-0002…
-    let aid = id, oldPath = id ? (getAsset(id) || {}).imagePath : null;
+    let aid = id, oldPath = id ? (getAsset(id) || {}).imagePath : null, oldInv = id ? (getAsset(id) || {}).invoicePath : null;
     try {
       if (id) must(await c.from('assets').update(row).eq('id', id));
       else aid = must(await c.from('assets').insert(row).select('id').single()).id;
@@ -301,14 +309,24 @@ const SupabaseStore = {
         must(await c.from('assets').update({image_path: path}).eq('id', aid));
         if (oldPath) await c.storage.from(IMG_BUCKET).remove([oldPath]);
       }
+      if (invoice === 'remove' && oldInv) {
+        must(await c.from('assets').update({invoice_path: null, invoice_name: null}).eq('id', aid));
+        await c.storage.from(INV_BUCKET).remove([oldInv]);
+      } else if (invoice && invoice.blob) {
+        const path = `${aid}/${Date.now()}-${String(invoice.name).replace(/[^A-Za-z0-9._-]/g, '_')}`;
+        must(await c.storage.from(INV_BUCKET).upload(path, invoice.blob, {contentType: invoice.type, cacheControl: '3600'}));
+        must(await c.from('assets').update({invoice_path: path, invoice_name: String(invoice.name).slice(0, 150)}).eq('id', aid));
+        if (oldInv) await c.storage.from(INV_BUCKET).remove([oldInv]);
+      }
     } finally {
       await this.reload().catch(() => {});   // la pantalla siempre refleja lo que realmente quedó guardado
     }
   },
   async deleteAsset(id) {
-    const path = (getAsset(id) || {}).imagePath;
+    const a = getAsset(id) || {}, path = a.imagePath;
     must(await this.client.from('assets').delete().eq('id', id));
     if (path) await this.client.storage.from(IMG_BUCKET).remove([path]);
+    if (a.invoicePath) await this.client.storage.from(INV_BUCKET).remove([a.invoicePath]);
     await this.reload();
   },
   async savePlan({id, data}) {
