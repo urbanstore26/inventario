@@ -100,7 +100,8 @@ function assetForm(id) {
         <b>Foto del bien</b>
         <span class="muted">JPG, PNG o WEBP. Se ajusta y comprime sola.</span>
         <div class="acts" style="justify-content:flex-start">
-          <label class="btn sm" style="cursor:pointer">Elegir foto<input id="aImage" type="file" accept="image/jpeg,image/png,image/webp" hidden></label>
+          ${isTouchDevice() ? `<label class="btn sm primary" style="cursor:pointer">Tomar foto<input id="aCamera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden></label>` : ''}
+          <label class="btn sm" style="cursor:pointer">${isTouchDevice() ? 'Elegir de la galería' : 'Elegir foto'}<input id="aImage" type="file" accept="image/jpeg,image/png,image/webp" hidden></label>
           <button type="button" class="btn sm" data-action="removeAssetImage">Quitar foto</button>
         </div>
       </div>

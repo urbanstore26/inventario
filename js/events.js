@@ -68,7 +68,7 @@ document.addEventListener('change', e => {
   else if (['xfReason', 'xfMethod'].includes(t.id)) xfChoose(t.id, t.value);
   else if (t.id === 'xcReason') { ui.exc.reason = t.value; drawExchangeRows(); }
   else if (t.id === 'pImage') run(null, () => pickProductImage(t));
-  else if (t.id === 'aImage') run(null, () => pickAssetImage(t));
+  else if (t.id === 'aImage' || t.id === 'aCamera') run(null, () => pickAssetImage(t));   // galería o cámara
   else if (t.id === 'astCat') { ui.ast.cat = t.value; drawAssetRows(); }
   else if (t.id === 'astStatus') { ui.ast.status = t.value; drawAssetRows(); }
   else if (t.id === 'astPlan') { ui.ast.plan = t.value; drawAssetRows(); }
