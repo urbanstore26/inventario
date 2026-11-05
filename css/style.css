@@ -463,7 +463,7 @@ input.xs{width:72px}
 
 /* Impresión desde celular y tablet: el ticket va en #printRoot y lo demás se oculta */
 #printRoot{position:fixed;left:-99999px;top:0;width:var(--pr-w,80mm);background:#fff;color:#000}
-#printRoot .ticket{box-shadow:none;margin:0 0 0 var(--pr-ml,0);padding-top:3mm;padding-bottom:0;width:var(--pr-tw,72mm)}
+#printRoot .ticket{box-shadow:none;margin:0 0 0 var(--pr-ml,0);padding-top:var(--pr-pt,1mm);padding-bottom:0;width:var(--pr-tw,72mm)}
 @media print{
   body.print-root-mode>*:not(#printRoot){display:none !important}
   body.print-root-mode{margin:0;padding:0;background:#fff !important;color:#000}
