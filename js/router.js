@@ -19,6 +19,21 @@ const VIEW_PERMISSION = {dashboard: 'dashboard.view', inventory: 'inventory.view
 /* Pantalla de inicio: la primera de esta lista a la que tenga acceso */
 const LANDING_ORDER = ['dashboard', 'pos', 'inventory', 'sales', 'discounts', 'assets', 'movements', 'users', 'settings'];
 
+/* Menú móvil deslizable: desvanecido en el borde con más opciones y pantalla activa al centro */
+function navUpdate() {
+  const nav = $('#nav'), side = nav && nav.closest('.side'); if (!nav || !side) return;
+  const max = nav.scrollWidth - nav.clientWidth;
+  side.classList.toggle('fade-l', max > 4 && nav.scrollLeft > 4);
+  side.classList.toggle('fade-r', max > 4 && nav.scrollLeft < max - 4);
+}
+function navCenter() {
+  const nav = $('#nav'), on = nav && nav.querySelector('a.on');
+  if (on && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2;
+  navUpdate();
+}
+document.addEventListener('scroll', e => { if (e.target && e.target.id === 'nav') navUpdate(); }, true);
+window.addEventListener('resize', navUpdate);
+
 function route(opts) {
   if (!appReady) return;
   const allowed = Object.keys(VIEWS).filter(k => [].concat(VIEW_PERMISSION[k]).some(can));   // una pantalla puede abrirse con cualquiera de varios permisos
@@ -33,6 +48,7 @@ function route(opts) {
   const r = location.hash.replace(/^#\/?/, '');
   const v = allowed.includes(r) ? r : LANDING_ORDER.find(k => allowed.includes(k));
   $('#nav').innerHTML = allowed.map(k => `<a href="#/${k}" class="${k === v ? 'on' : ''}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${NAV_LABELS[k]}</a>`).join('');
+  navCenter();
   $('#title').textContent = VIEWS[v].title;
   VIEWS[v].render();
   if (!(opts && opts.keepScroll)) window.scrollTo(0, 0);
