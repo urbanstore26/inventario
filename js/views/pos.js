@@ -199,7 +199,8 @@ function ticketToolbarHTML() {
     </div></details></div>`;
 }
 /* Botón para llevar el ticket a la aplicación de la impresora (celular) o guardarlo como imagen (computadora) */
-const ticketShareButtonHTML = () => `<button class="btn" data-action="shareTicket">${isTouchDevice() ? 'Compartir como imagen' : 'Guardar como imagen'}</button>`;
+const ticketShareButtonHTML = () => (isTouchDevice() ? '' : `<button class="btn" data-action="ticketPdf" title="Abre el ticket como PDF: al imprimirlo desde el visor no salen fecha, título ni dirección">Ticket en PDF</button>`)
+  + `<button class="btn" data-action="shareTicket">${isTouchDevice() ? 'Compartir como imagen' : 'Guardar como imagen'}</button>`;
 
 /* ---------- Dónde se dibuja lo que se imprime ----------
    Computadora: un documento aparte (iframe oculto) con solo el ticket. Celular y tablet: el navegador imprime la página
@@ -289,8 +290,14 @@ async function printTestPage() {
 
 /* ---------- El ticket como imagen (para compartirlo con la aplicación de la impresora) ----------
    Se dibuja en un lienzo de 203 puntos por pulgada (lo habitual en térmicas: 72 mm = 576 puntos de ancho). */
-async function ticketToBlob() {
+async function ticketToBlob(o = {}) {
   const t = $('.ticket'); if (!t) throw new Error('No hay ticket');
+  const keep = [t.style.paddingTop, t.style.paddingBottom];   // opcional: espacio de arriba y de abajo en mm (se restaura al terminar)
+  if (o.top != null) t.style.paddingTop = o.top + 'mm';
+  if (o.bottom != null) t.style.paddingBottom = o.bottom + 'mm';
+  try { return await drawTicket(t); } finally { [t.style.paddingTop, t.style.paddingBottom] = keep; }
+}
+async function drawTicket(t) {
   const link = document.querySelector('link[rel=stylesheet][href*="style.css"]');
   const css = link ? await (await fetch(new URL(link.getAttribute('href'), location.href))).text() : '';
   const clone = t.cloneNode(true); clone.style.boxShadow = 'none'; clone.style.margin = '0';
@@ -307,7 +314,45 @@ async function ticketToBlob() {
   const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(im, 0, 0, cv.width, cv.height);
   const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
   if (!blob) throw new Error('No se pudo crear la imagen');
-  return {blob, w: cv.width, h: cv.height};
+  return {blob, w: cv.width, h: cv.height, canvas: cv};
+}
+
+/* ---------- El ticket como PDF ----------
+   Se arma un PDF de una sola página con el tamaño exacto del ticket (ancho del rollo × alto del ticket). El visor de PDF del
+   navegador imprime sin fecha, título, dirección ni "1/1" arriba o abajo, y sin márgenes del navegador. */
+async function deflateBytes(bytes) {
+  const cs = new CompressionStream('deflate'), w = cs.writable.getWriter(); w.write(bytes); w.close();
+  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+async function ticketToPdf() {
+  const c = ticketCfg(), {canvas} = await ticketToBlob({top: c.top, bottom: 0});
+  const W = canvas.width, H = canvas.height, px = canvas.getContext('2d').getImageData(0, 0, W, H).data, gray = new Uint8Array(W * H);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) gray[j] = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
+  const img = await deflateBytes(gray), pt = mm => mm * 72 / 25.4, n2 = v => v.toFixed(2);
+  const wPt = W * 72 / 203, hPt = H * 72 / 203, pw = pt(c.mm), ph = hPt + pt(c.end), x = pt(c.ml);
+  const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
+  const add = d => { const u = typeof d === 'string' ? enc.encode(d) : d; parts.push(u); len += u.length; };
+  const obj = (n, body) => { offs[n] = len; add(`${n} 0 obj\n${body}\nendobj\n`); };
+  const content = `q ${n2(wPt)} 0 0 ${n2(hPt)} ${n2(x)} ${n2(ph - hPt)} cm /Im0 Do Q`;
+  add('%PDF-1.4\n');
+  obj(1, '<</Type/Catalog/Pages 2 0 R>>');
+  obj(2, '<</Type/Pages/Kids[3 0 R]/Count 1>>');
+  obj(3, `<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${n2(pw)} ${n2(ph)}]/Resources<</XObject<</Im0 5 0 R>>>>/Contents 4 0 R>>`);
+  obj(4, `<</Length ${content.length}>>\nstream\n${content}\nendstream`);
+  offs[5] = len; add(`5 0 obj\n<</Type/XObject/Subtype/Image/Width ${W}/Height ${H}/ColorSpace/DeviceGray/BitsPerComponent 8/Filter/FlateDecode/Length ${img.length}>>\nstream\n`); add(img); add('\nendstream\nendobj\n');
+  const xref = len;
+  add('xref\n0 6\n0000000000 65535 f \n' + [1, 2, 3, 4, 5].map(n => String(offs[n]).padStart(10, '0') + ' 00000 n \n').join(''));
+  add(`trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts, {type: 'application/pdf'});
+}
+async function printTicketPdf() {
+  const win = window.open('', '_blank');   // se abre antes de generar el PDF para que el navegador no lo bloquee
+  try {
+    const url = URL.createObjectURL(await ticketToPdf());
+    if (win) win.location.href = url; else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    toast('Se abrió el ticket en PDF: pulsa el ícono de imprimir del visor');
+  } catch (e) { if (win) win.close(); throw e; }
 }
 async function shareTicketImage() {
   const t = $('.ticket'), m = t && (t.innerText.match(/Comprobante(?: de cambio)? ([VC]-\d+)/) || []), name = 'ticket-' + (m && m[1] ? m[1] : 'plante') + '.png';
