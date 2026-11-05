@@ -189,7 +189,8 @@ function ticketToolbarHTML() {
       <div class="acts"><button type="button" class="btn sm" data-action="printTest">Imprimir página de prueba</button><button type="button" class="btn sm" data-action="tkReset">Restablecer</button></div>
       <div><b style="font-size:13px">En computadora (cuadro de impresión del navegador):</b>
         <ol><li>Elige tu impresora de tickets (por ejemplo MHT-L80G-BT).</li>
-          <li><b>Tamaño de papel:</b> rollo de 80 mm (o 58 mm). Si no aparece, créalo en Windows: Impresoras, tu impresora, Preferencias, Papel, tamaño personalizado de 80 × 297 mm.</li>
+          <li><b>Tamaño de papel:</b> el sistema ya envía el alto exacto de cada ticket; no crees un papel largo (como 80 × 297 mm) porque la impresora avanzaría todo ese largo y quedaría blanco. Usa el tamaño de rollo de 80 mm (o 58 mm) de tu driver, con tipo de material <b>Continuo</b>, o crea uno de 80 mm de ancho y un largo parecido al de tus tickets (por ejemplo 80 × 120 mm).</li>
+          <li>Si el blanco de arriba o el largo no cambian, usa <b>Ticket en PDF</b>: se imprime desde el visor de PDF sin encabezados y con el alto exacto del ticket.</li>
           <li><b>Orientación:</b> vertical. <b>Márgenes:</b> ninguno. <b>Escala:</b> 100 %.</li>
           <li>Desmarca <b>Encabezados y pies de página</b> (es lo que imprime “1/1”).</li></ol></div>
       <div><b style="font-size:13px">En celular o tablet (aplicación instalada o navegador):</b>

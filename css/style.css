@@ -257,19 +257,6 @@ td .meta{color:var(--smoke);font-size:12px}
   .modal{padding:24px}
 }
 
-/* ---------- impresión del comprobante ---------- */
-@media print{
-  body.print-receipt .app,body.print-receipt .toasts,body.print-receipt #authRoot{display:none !important}
-  body.print-receipt .backdrop{position:static;background:none;padding:0;display:block;overflow:visible}
-  body.print-receipt .modal{box-shadow:none;width:auto;max-height:none;padding:0;overflow:visible;background:none}
-  body.print-receipt .no-print{display:none !important}
-  body.print-receipt .ticket-wrap{background:none;padding:0;display:block;overflow:visible}
-  body.print-receipt .ticket{box-shadow:none;margin:0}
-  body.print-receipt .ticket-wrap .ticket{padding-top:3mm}
-  body.print-receipt .tk-logo{filter:grayscale(1) contrast(1.35)}   /* las térmicas imprimen en blanco y negro */
-  body.print-receipt{background:#fff;color:#000}
-}
-
 /* ---------- fotos de los estilos ---------- */
 .thumb{display:inline-grid;place-items:center;width:48px;height:48px;border-radius:var(--r-small);background:var(--taupe);color:var(--ash);overflow:hidden;flex:none}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
