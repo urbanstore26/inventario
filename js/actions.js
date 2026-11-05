@@ -105,6 +105,7 @@ const ACTIONS = {
   voidSale: el => voidSale(el.dataset.id),
   printReceipt: printTicket,
   printTest: printTestPage,
+  shareTicket: () => run(null, shareTicketImage),
   tkReset: resetTicketCfg,
   /* Misma estructura que la hoja de Excel: SKU · Modelo · Color · Talla · Costo · Precio venta · Stock Inicial · Vendidos · Stock actual · Ganancia unidad · Valor Inventario · Estado */
   exportInv: () => run(null, async () => {

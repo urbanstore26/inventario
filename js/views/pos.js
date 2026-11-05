@@ -138,7 +138,7 @@ function showSale(id) {
     <div class="foot no-print">
     ${s.status === 'completada' && can('exchanges.create') ? `<button class="btn" data-action="newExchangeFor" data-id="${s.id}">Registrar cambio</button>` : ''}
     ${s.status === 'completada' && can('sales.void') && !saleExchanges(s.id).length ? `<button class="btn danger" data-action="voidSale" data-id="${s.id}">Anular venta</button>` : ''}
-    <button class="btn" data-action="closeModal">Cerrar</button><button class="btn primary" data-action="printReceipt">Imprimir ticket</button></div>`);
+    <button class="btn" data-action="closeModal">Cerrar</button>${ticketShareButtonHTML()}<button class="btn primary" data-action="printReceipt">Imprimir ticket</button></div>`);
 }
 
 /* ---------- Impresión del ticket ----------
@@ -185,17 +185,26 @@ function ticketToolbarHTML() {
         <label class="f">Tamaño del texto (%)<input id="tkS" type="number" min="70" max="160" step="5" value="${Math.round(c.scale * 100)}"></label>
       </div>
       <div class="acts"><button type="button" class="btn sm" data-action="printTest">Imprimir página de prueba</button><button type="button" class="btn sm" data-action="tkReset">Restablecer</button></div>
-      <div><b style="font-size:13px">En el cuadro de impresión del navegador:</b>
+      <div><b style="font-size:13px">En computadora (cuadro de impresión del navegador):</b>
         <ol><li>Elige tu impresora de tickets (por ejemplo MHT-L80G-BT).</li>
           <li><b>Tamaño de papel:</b> rollo de 80 mm (o 58 mm). Si no aparece, créalo en Windows: Impresoras, tu impresora, Preferencias, Papel, tamaño personalizado de 80 × 297 mm.</li>
           <li><b>Orientación:</b> vertical. <b>Márgenes:</b> ninguno. <b>Escala:</b> 100 %.</li>
           <li>Desmarca <b>Encabezados y pies de página</b> (es lo que imprime “1/1”).</li></ol></div>
+      <div><b style="font-size:13px">En celular o tablet (aplicación instalada o navegador):</b>
+        <ol><li>Pulsa <b>Imprimir ticket</b> y, en la pantalla de impresión, elige el servicio o la aplicación de tu impresora (la de la MHT-L80G-BT o, por ejemplo, RawBT) con papel de <b>80 mm</b>.</li>
+          <li>Si tu impresora trabaja con su propia aplicación, pulsa <b>Compartir como imagen</b> y elige esa aplicación: imprime el ticket tal como se ve.</li>
+          <li>Prueba primero con <b>Imprimir página de prueba</b>: si ves la regla de 0 a 80 mm completa, la hoja está bien.</li></ol></div>
     </div></details></div>`;
 }
+/* Botón para llevar el ticket a la aplicación de la impresora (celular) o guardarlo como imagen (computadora) */
+const ticketShareButtonHTML = () => `<button class="btn" data-action="shareTicket">${isTouchDevice() ? 'Compartir como imagen' : 'Guardar como imagen'}</button>`;
 
-/* Documento que se imprime: solo el ticket, en un papel de ancho exacto. Usa la misma hoja de estilos de la aplicación;
-   el alto se mide con el ticket ya dibujado. */
-function ticketPrintHTML(bodyHtml, c) {
+/* ---------- Dónde se dibuja lo que se imprime ----------
+   Computadora: un documento aparte (iframe oculto) con solo el ticket. Celular y tablet: el navegador imprime la página
+   principal, así que el ticket se pone en un bloque propio (#printRoot) y el resto de la pantalla se oculta al imprimir.
+   En los dos casos la hoja se fija en milímetros: ancho del rollo, alto medido, márgenes en cero, vertical. */
+const PRINT_EXTRA = `.tk-logo{filter:grayscale(1) contrast(1.35)}`;
+function ticketPrintHTML(bodyHtml, c, extra = '') {
   const link = document.querySelector('link[rel=stylesheet][href*="style.css"]'), css = link ? new URL(link.getAttribute('href'), location.href).href : '';
   const abs = bodyHtml.replace(/(src=")([^"]+)(")/g, (m, a, u, z) => a + new URL(u, location.href).href + z);   // el logo con ruta completa
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Ticket</title>${css ? `<link rel="stylesheet" href="${css}">` : ''}<style>
@@ -203,10 +212,10 @@ function ticketPrintHTML(bodyHtml, c) {
     *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     html,body{margin:0;padding:0;background:#fff;color:#000;width:${c.mm}mm}
     .ticket{box-shadow:none;margin:0 0 0 ${c.ml}mm;padding-top:3mm;width:${c.w}mm}
-    .tk-logo{filter:grayscale(1) contrast(1.35)}
+    ${PRINT_EXTRA}${extra}
   </style></head><body>${abs}</body></html>`;
 }
-/* Prepara el iframe oculto: espera el logo, mide el alto y fija la hoja (ancho × alto, vertical) */
+/* Prepara el iframe oculto: espera estilos y logo, mide el alto y fija la hoja (ancho × alto, vertical) */
 async function preparePrintFrame(html, c) {
   const fr = document.createElement('iframe');
   fr.setAttribute('aria-hidden', 'true');
@@ -228,16 +237,36 @@ async function printDocument(html, c) {
   fr.contentWindow.focus(); fr.contentWindow.print();
   setTimeout(() => fr.remove(), 60000);
 }
+/* Celular y tablet: el ticket en un bloque propio de la página; al imprimir, lo demás se oculta (ver css #printRoot) */
+async function printInPage(bodyHtml, c, extra = '') {
+  document.querySelectorAll('#printRoot,#printRootStyle').forEach(e => e.remove());
+  const root = document.createElement('div'); root.id = 'printRoot';
+  root.style.cssText = `--pr-w:${c.mm}mm;--pr-ml:${c.ml}mm;--pr-tw:${c.w}mm`;
+  root.innerHTML = bodyHtml.replace(/ style="[^"]*--tkw[^"]*"/, m => m);
+  const st = document.createElement('style'); st.id = 'printRootStyle'; st.textContent = extra;
+  document.head.appendChild(st); document.body.appendChild(root);
+  const cleanup = () => { root.remove(); st.remove(); document.body.classList.remove('print-root-mode'); window.removeEventListener('afterprint', cleanup); };
+  try {
+    await Promise.all([...root.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+    const h = Math.max(Math.ceil(root.getBoundingClientRect().height * 25.4 / 96) + 6, c.mm + 20);
+    st.textContent = `@page{size:${c.mm}mm ${h}mm;margin:0}` + extra;
+    document.body.classList.add('print-root-mode');
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 180000);   // por si el navegador no avisa que terminó
+    window.print();
+  } catch (e) { cleanup(); throw e; }
+}
+const printBody = (bodyHtml, c, extra = '') => isTouchDevice() ? printInPage(bodyHtml, c, extra) : printDocument(ticketPrintHTML(bodyHtml, c, extra), c);
 async function printTicket() {
   const t = $('.ticket'); if (!t) return;
-  const c = ticketCfg();
-  try { await printDocument(ticketPrintHTML(t.outerHTML, c), c); }
+  try { await printBody(t.outerHTML, ticketCfg()); }
   catch (e) { console.error(e); toast('No se pudo preparar la impresión', true); }
 }
 /* Página de prueba: regla de 0 a 80 mm y bordes, para ver el tamaño del papel, la orientación y los márgenes de la impresora */
-async function printTestPage() {
-  const c = ticketCfg(), ticks = Array.from({length: Math.floor(c.mm / 10) + 1}, (_, i) => `<i style="left:${i * 10}mm"><b>${i * 10}</b></i>`).join('');
-  const body = `<div class="ticket tk-test" style="--tkw:${c.w}mm;--tks:${c.scale}">
+const testPageParts = c => {
+  const ticks = Array.from({length: Math.floor(c.mm / 10) + 1}, (_, i) => `<i style="left:${i * 10}mm"><b>${i * 10}</b></i>`).join('');
+  return {
+    body: `<div class="ticket tk-test" style="--tkw:${c.w}mm;--tks:${c.scale}">
     <div class="tk-store">PRUEBA DE IMPRESIÓN</div>
     <div class="tk-center tk-small">Papel ${c.mm} mm · ticket ${c.w} mm · margen ${c.ml} mm · texto ${Math.round(c.scale * 100)} %</div>
     <div class="tk-sep"></div>
@@ -247,8 +276,45 @@ async function printTestPage() {
     <div>Texto normal 12345 ABC</div><div class="tk-small">Texto pequeño 12345 ABC</div><div class="tk-total">TOTAL $12.34</div>
     <div class="tk-sep"></div>
     <div class="tk-center tk-small">Si lees esto derecho, con el rollo saliendo hacia abajo, la orientación es correcta. Debe verse la regla completa y la línea IZQUIERDA/DERECHA sin cortar. Sin “1/1” ni fecha arriba o abajo.</div>
-  </div>`;
-  const extra = `.tk-ruler{position:relative;height:9mm;border-top:.4mm solid #000;margin-bottom:2mm}.tk-ruler i{position:absolute;top:0;height:3mm;border-left:.3mm solid #000}.tk-ruler b{position:absolute;top:3.2mm;left:-1.5mm;font:9px var(--font-mono);font-style:normal}`;
-  const html = ticketPrintHTML(body, c).replace('</style></head>', extra + '</style></head>');
-  try { await printDocument(html, c); } catch (e) { console.error(e); toast('No se pudo preparar la página de prueba', true); }
+  </div>`,
+    extra: `.tk-ruler{position:relative;height:9mm;border-top:.4mm solid #000;margin-bottom:2mm}.tk-ruler i{position:absolute;top:0;height:3mm;border-left:.3mm solid #000}.tk-ruler b{position:absolute;top:3.2mm;left:-1.5mm;font:9px var(--font-mono);font-style:normal}`
+  };
+};
+async function printTestPage() {
+  const c = ticketCfg(), {body, extra} = testPageParts(c);
+  try { await printBody(body, c, extra); } catch (e) { console.error(e); toast('No se pudo preparar la página de prueba', true); }
+}
+
+/* ---------- El ticket como imagen (para compartirlo con la aplicación de la impresora) ----------
+   Se dibuja en un lienzo de 203 puntos por pulgada (lo habitual en térmicas: 72 mm = 576 puntos de ancho). */
+async function ticketToBlob() {
+  const t = $('.ticket'); if (!t) throw new Error('No hay ticket');
+  const link = document.querySelector('link[rel=stylesheet][href*="style.css"]');
+  const css = link ? await (await fetch(new URL(link.getAttribute('href'), location.href))).text() : '';
+  const clone = t.cloneNode(true); clone.style.boxShadow = 'none'; clone.style.margin = '0';
+  for (const img of clone.querySelectorAll('img')) {
+    const blob = await (await fetch(img.src)).blob();
+    img.src = await blobToDataURL(blob);
+  }
+  const w = Math.round(t.getBoundingClientRect().width), h = Math.ceil(t.getBoundingClientRect().height), k = 203 / 96;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w * k)}" height="${Math.round(h * k)}" viewBox="0 0 ${w} ${h}"><foreignObject x="0" y="0" width="${w}" height="${h}">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;background:#fff"><style>${css.replace(/@import[^;]+;/g, '')} .tk-logo{filter:grayscale(1) contrast(1.35)}</style>${new XMLSerializer().serializeToString(clone)}</div></foreignObject></svg>`;
+  const im = new Image();
+  await new Promise((ok, fail) => { im.onload = ok; im.onerror = () => fail(new Error('No se pudo dibujar el ticket')); im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+  const cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(h * k);
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(im, 0, 0, cv.width, cv.height);
+  const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+  if (!blob) throw new Error('No se pudo crear la imagen');
+  return {blob, w: cv.width, h: cv.height};
+}
+async function shareTicketImage() {
+  const t = $('.ticket'), m = t && (t.innerText.match(/Comprobante(?: de cambio)? ([VC]-\d+)/) || []), name = 'ticket-' + (m && m[1] ? m[1] : 'plante') + '.png';
+  const {blob} = await ticketToBlob(), file = new File([blob], name, {type: 'image/png'});
+  if (navigator.canShare && navigator.canShare({files: [file]})) {
+    try { await navigator.share({files: [file], title: name}); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; /* cancelado por el usuario */ }
+  }
+  const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(file), download: name});
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Imagen guardada: ' + name);
 }

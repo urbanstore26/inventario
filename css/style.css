@@ -208,7 +208,7 @@ td .meta{color:var(--smoke);font-size:12px}
 .modal.wide{width:min(760px,100%)}
 .modal h2{font-family:var(--font-display);font-weight:300;font-size:32px;line-height:1.13;letter-spacing:-.64px;margin-bottom:20px}
 .modal h3{font-size:14px;font-weight:500}
-.modal .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.modal .foot{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:24px}
 .szgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
 .sz{display:block;text-align:center;font-weight:500;font-size:12px;color:var(--smoke)}
 .sz input{text-align:center;margin-top:4px;padding:6px 2px}
@@ -451,3 +451,13 @@ input.xs{width:72px}
 .print-adj ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:13px;color:var(--graphite)}
 .print-adj .acts{justify-content:flex-start}
 @media(max-width:700px){.print-adj .pa-grid{grid-template-columns:1fr 1fr}}
+
+/* Impresión desde celular y tablet: el ticket va en #printRoot y lo demás se oculta */
+#printRoot{position:fixed;left:-99999px;top:0;width:var(--pr-w,80mm);background:#fff;color:#000}
+#printRoot .ticket{box-shadow:none;margin:0 0 0 var(--pr-ml,0);padding-top:3mm;width:var(--pr-tw,72mm)}
+@media print{
+  body.print-root-mode>*:not(#printRoot){display:none !important}
+  body.print-root-mode{margin:0;padding:0;background:#fff !important;color:#000}
+  body.print-root-mode #printRoot{position:static;left:auto;width:var(--pr-w,80mm);margin:0;padding:0}
+  body.print-root-mode #printRoot .tk-logo{filter:grayscale(1) contrast(1.35)}
+}

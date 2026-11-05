@@ -271,7 +271,7 @@ function showExchange(id) {
   const mm = ticketMm();
   openModal(`${ticketToolbarHTML()}
     <div class="ticket-wrap">${exchangeReceiptHTML(e)}</div>
-    <div class="foot no-print"><button class="btn" data-action="closeModal">Cerrar</button>${e.saleId ? `<button class="btn" data-action="viewSale" data-id="${esc(e.saleId)}">Ver ticket de la venta</button>` : ''}<button class="btn primary" data-action="printReceipt">Imprimir comprobante</button></div>`);
+    <div class="foot no-print"><button class="btn" data-action="closeModal">Cerrar</button>${e.saleId ? `<button class="btn" data-action="viewSale" data-id="${esc(e.saleId)}">Ver ticket de la venta</button>` : ''}${ticketShareButtonHTML()}<button class="btn primary" data-action="printReceipt">Imprimir comprobante</button></div>`);
 }
 
 function exportExchanges() {
