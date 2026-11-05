@@ -66,7 +66,6 @@ document.addEventListener('change', e => {
   else if (t.id === 'pickCat') drawPick();
   else if (t.id === 'tkWidth') setTicketWidth(t.value);
   else if (['tkW', 'tkMl', 'tkS', 'tkEnd', 'tkTop'].includes(t.id)) setTicketCfg(t.id, t.value);
-  else if (t.id === 'tkFlip') setTicketCfg('tkFlip', t.checked ? 1 : 0);
   else if (t.dataset && t.dataset.xf) xfField(t);
   else if (['xfReason', 'xfMethod'].includes(t.id)) xfChoose(t.id, t.value);
   else if (t.id === 'xcReason') { ui.exc.reason = t.value; drawExchangeRows(); }

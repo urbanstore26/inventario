@@ -148,13 +148,13 @@ function showSale(id) {
 const clampNum = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 function ticketCfg() {
   const mm = +ticketMm(), get = (k, d) => { try { const v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? v : d; } catch (e) { return d; } };
-  return {mm, w: clampNum(get('pu_tk_w_' + mm, mm === 58 ? 50 : 72), 30, mm), ml: clampNum(get('pu_tk_ml', 0), 0, 20), scale: clampNum(get('pu_tk_s', 100), 70, 160) / 100, end: clampNum(get('pu_tk_end', 3), 0, 30), top: clampNum(get('pu_tk_top', 1), 0, 20), flip: get('pu_tk_flip', 0) === 1};
+  return {mm, w: clampNum(get('pu_tk_w_' + mm, mm === 58 ? 50 : 72), 30, mm), ml: clampNum(get('pu_tk_ml', 0), 0, 20), scale: clampNum(get('pu_tk_s', 100), 70, 160) / 100, end: clampNum(get('pu_tk_end', 3), 0, 30), top: clampNum(get('pu_tk_top', 1), 0, 20), flip: true /* orientación fija: el ticket se manda girado 180° (driver en Vertical 180°) */};
 }
 const ticketStyle = () => { const c = ticketCfg(); return `--tkw:${c.w}mm;--tks:${c.scale}`; };
 function applyTicketCfg() {
   const c = ticketCfg();
   document.querySelectorAll('.ticket').forEach(t => { t.dataset.w = String(c.mm); t.style.setProperty('--tkw', c.w + 'mm'); t.style.setProperty('--tks', String(c.scale)); });
-  const w = $('#tkW'), ml = $('#tkMl'), s = $('#tkS'), en = $('#tkEnd'), tp = $('#tkTop'), fl = $('#tkFlip'); if (fl) fl.checked = c.flip;
+  const w = $('#tkW'), ml = $('#tkMl'), s = $('#tkS'), en = $('#tkEnd'), tp = $('#tkTop');
   if (w) w.value = c.w; if (ml) ml.value = c.ml; if (s) s.value = Math.round(c.scale * 100); if (en) en.value = c.end; if (tp) tp.value = c.top;
 }
 function setTicketWidth(mm) {
@@ -164,12 +164,12 @@ function setTicketWidth(mm) {
 function setTicketCfg(id, value) {
   const v = parseFloat(value); if (!isFinite(v)) return;
   const mm = ticketMm();
-  try { localStorage.setItem(id === 'tkW' ? 'pu_tk_w_' + mm : id === 'tkMl' ? 'pu_tk_ml' : id === 'tkEnd' ? 'pu_tk_end' : id === 'tkTop' ? 'pu_tk_top' : id === 'tkFlip' ? 'pu_tk_flip' : 'pu_tk_s', String(v)); } catch (e) {}
+  try { localStorage.setItem(id === 'tkW' ? 'pu_tk_w_' + mm : id === 'tkMl' ? 'pu_tk_ml' : id === 'tkEnd' ? 'pu_tk_end' : id === 'tkTop' ? 'pu_tk_top' : 'pu_tk_s', String(v)); } catch (e) {}
   const c = ticketCfg();
   document.querySelectorAll('.ticket').forEach(t => { t.style.setProperty('--tkw', c.w + 'mm'); t.style.setProperty('--tks', String(c.scale)); });
 }
 function resetTicketCfg() {
-  try { ['pu_tk_w_80', 'pu_tk_w_58', 'pu_tk_ml', 'pu_tk_s', 'pu_tk_end', 'pu_tk_top', 'pu_tk_flip'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+  try { ['pu_tk_w_80', 'pu_tk_w_58', 'pu_tk_ml', 'pu_tk_s', 'pu_tk_end', 'pu_tk_top'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
   applyTicketCfg(); toast('Ajustes de impresión restablecidos');
 }
 
@@ -186,7 +186,6 @@ function ticketToolbarHTML() {
         <label class="f">Espacio arriba del ticket (mm)<input id="tkTop" type="number" min="0" max="20" step="1" value="${c.top}"></label>
         <label class="f">Papel sobrante al final (mm)<input id="tkEnd" type="number" min="0" max="30" step="1" value="${c.end}"></label>
       </div>
-      <label class="tk-flip"><input id="tkFlip" type="checkbox"${c.flip ? ' checked' : ''}><span><b>Imprimir de abajo hacia arriba (girar 180°)</b><br>El ticket se manda girado. Úsalo junto con la orientación <b>Vertical 180°</b> del driver (Preferencias de impresión, Preparar página): el ticket se lee derecho y sale por el otro extremo de la hoja.</span></label>
       <div class="acts"><button type="button" class="btn sm" data-action="printTest">Imprimir página de prueba</button><button type="button" class="btn sm" data-action="tkReset">Restablecer</button></div>
       <div><b style="font-size:13px">En computadora (cuadro de impresión del navegador):</b>
         <ol><li>Elige tu impresora de tickets (por ejemplo MHT-L80G-BT).</li>
