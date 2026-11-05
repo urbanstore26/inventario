@@ -148,14 +148,14 @@ function showSale(id) {
 const clampNum = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 function ticketCfg() {
   const mm = +ticketMm(), get = (k, d) => { try { const v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? v : d; } catch (e) { return d; } };
-  return {mm, w: clampNum(get('pu_tk_w_' + mm, mm === 58 ? 50 : 72), 30, mm), ml: clampNum(get('pu_tk_ml', 0), 0, 20), scale: clampNum(get('pu_tk_s', 100), 70, 160) / 100};
+  return {mm, w: clampNum(get('pu_tk_w_' + mm, mm === 58 ? 50 : 72), 30, mm), ml: clampNum(get('pu_tk_ml', 0), 0, 20), scale: clampNum(get('pu_tk_s', 100), 70, 160) / 100, end: clampNum(get('pu_tk_end', 3), 0, 30)};
 }
 const ticketStyle = () => { const c = ticketCfg(); return `--tkw:${c.w}mm;--tks:${c.scale}`; };
 function applyTicketCfg() {
   const c = ticketCfg();
   document.querySelectorAll('.ticket').forEach(t => { t.dataset.w = String(c.mm); t.style.setProperty('--tkw', c.w + 'mm'); t.style.setProperty('--tks', String(c.scale)); });
-  const w = $('#tkW'), ml = $('#tkMl'), s = $('#tkS');
-  if (w) w.value = c.w; if (ml) ml.value = c.ml; if (s) s.value = Math.round(c.scale * 100);
+  const w = $('#tkW'), ml = $('#tkMl'), s = $('#tkS'), en = $('#tkEnd');
+  if (w) w.value = c.w; if (ml) ml.value = c.ml; if (s) s.value = Math.round(c.scale * 100); if (en) en.value = c.end;
 }
 function setTicketWidth(mm) {
   try { localStorage.setItem('pu_ticket_mm', mm === '58' ? '58' : '80'); } catch (e) {}
@@ -164,12 +164,12 @@ function setTicketWidth(mm) {
 function setTicketCfg(id, value) {
   const v = parseFloat(value); if (!isFinite(v)) return;
   const mm = ticketMm();
-  try { localStorage.setItem(id === 'tkW' ? 'pu_tk_w_' + mm : id === 'tkMl' ? 'pu_tk_ml' : 'pu_tk_s', String(v)); } catch (e) {}
+  try { localStorage.setItem(id === 'tkW' ? 'pu_tk_w_' + mm : id === 'tkMl' ? 'pu_tk_ml' : id === 'tkEnd' ? 'pu_tk_end' : 'pu_tk_s', String(v)); } catch (e) {}
   const c = ticketCfg();
   document.querySelectorAll('.ticket').forEach(t => { t.style.setProperty('--tkw', c.w + 'mm'); t.style.setProperty('--tks', String(c.scale)); });
 }
 function resetTicketCfg() {
-  try { ['pu_tk_w_80', 'pu_tk_w_58', 'pu_tk_ml', 'pu_tk_s'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+  try { ['pu_tk_w_80', 'pu_tk_w_58', 'pu_tk_ml', 'pu_tk_s', 'pu_tk_end'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
   applyTicketCfg(); toast('Ajustes de impresión restablecidos');
 }
 
@@ -183,6 +183,7 @@ function ticketToolbarHTML() {
         <label class="f">Ancho del ticket (mm)<input id="tkW" type="number" min="30" max="${mm}" step="1" value="${c.w}"></label>
         <label class="f">Margen izquierdo (mm)<input id="tkMl" type="number" min="0" max="20" step="1" value="${c.ml}"></label>
         <label class="f">Tamaño del texto (%)<input id="tkS" type="number" min="70" max="160" step="5" value="${Math.round(c.scale * 100)}"></label>
+        <label class="f">Papel sobrante al final (mm)<input id="tkEnd" type="number" min="0" max="30" step="1" value="${c.end}"></label>
       </div>
       <div class="acts"><button type="button" class="btn sm" data-action="printTest">Imprimir página de prueba</button><button type="button" class="btn sm" data-action="tkReset">Restablecer</button></div>
       <div><b style="font-size:13px">En computadora (cuadro de impresión del navegador):</b>
@@ -211,7 +212,7 @@ function ticketPrintHTML(bodyHtml, c, extra = '') {
     @page{size:${c.mm}mm 200mm;margin:0}
     *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     html,body{margin:0;padding:0;background:#fff;color:#000;width:${c.mm}mm}
-    .ticket{box-shadow:none;margin:0 0 0 ${c.ml}mm;padding-top:3mm;width:${c.w}mm}
+    .ticket{box-shadow:none;margin:0 0 0 ${c.ml}mm;padding-top:3mm;padding-bottom:0;width:${c.w}mm}
     ${PRINT_EXTRA}${extra}
   </style></head><body>${abs}</body></html>`;
 }
@@ -227,7 +228,7 @@ async function preparePrintFrame(html, c) {
     await Promise.all([...d.querySelectorAll('link[rel=stylesheet]')].map(l => l.sheet ? 0 : new Promise(r => { l.onload = l.onerror = r; })));
     await Promise.all([...d.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
     if (d.fonts && d.fonts.ready) await d.fonts.ready;
-    const h = Math.max(Math.ceil(d.body.scrollHeight * 25.4 / 96) + 6, c.mm + 20);   // siempre más alto que ancho: hoja vertical
+    const h = Math.max(Math.ceil(d.body.scrollHeight * 25.4 / 96) + c.end, c.mm + 20);   // siempre más alto que ancho: hoja vertical
     d.head.insertAdjacentHTML('beforeend', `<style>@page{size:${c.mm}mm ${h}mm;margin:0}</style>`);
     return {fr, h};
   } catch (e) { fr.remove(); throw e; }
@@ -248,7 +249,7 @@ async function printInPage(bodyHtml, c, extra = '') {
   const cleanup = () => { root.remove(); st.remove(); document.body.classList.remove('print-root-mode'); window.removeEventListener('afterprint', cleanup); };
   try {
     await Promise.all([...root.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
-    const h = Math.max(Math.ceil(root.getBoundingClientRect().height * 25.4 / 96) + 6, c.mm + 20);
+    const h = Math.max(Math.ceil(root.getBoundingClientRect().height * 25.4 / 96) + c.end, c.mm + 20);
     st.textContent = `@page{size:${c.mm}mm ${h}mm;margin:0}` + extra;
     document.body.classList.add('print-root-mode');
     window.addEventListener('afterprint', cleanup);

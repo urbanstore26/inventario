@@ -43,7 +43,7 @@ document.addEventListener('input', e => {
     case 'evQ': ui.ast.evq = t.value; drawHistoryRows(); break;
     case 'exQ': ui.ast.exq = t.value; drawExpenseRows(); break;
     case 'xcQ': ui.exc.q = t.value; drawExchangeRows(); break;
-    case 'tkW': case 'tkMl': case 'tkS': setTicketCfg(t.id, t.value); break;
+    case 'tkW': case 'tkMl': case 'tkS': case 'tkEnd': setTicketCfg(t.id, t.value); break;
     case 'xfCustomer': if (xf) xf.customer = t.value; break;
     case 'xfSq': case 'xfDate': case 'xfFrom': case 'xfTo': xfFind(t); break;
     case 'xfNote': if (xf) xf.note = t.value; break;
@@ -65,7 +65,7 @@ document.addEventListener('change', e => {
   else if (t.dataset && t.dataset.pick) pickToggle(t.dataset.pick, t.checked);
   else if (t.id === 'pickCat') drawPick();
   else if (t.id === 'tkWidth') setTicketWidth(t.value);
-  else if (['tkW', 'tkMl', 'tkS'].includes(t.id)) setTicketCfg(t.id, t.value);
+  else if (['tkW', 'tkMl', 'tkS', 'tkEnd'].includes(t.id)) setTicketCfg(t.id, t.value);
   else if (t.dataset && t.dataset.xf) xfField(t);
   else if (['xfReason', 'xfMethod'].includes(t.id)) xfChoose(t.id, t.value);
   else if (t.id === 'xcReason') { ui.exc.reason = t.value; drawExchangeRows(); }
