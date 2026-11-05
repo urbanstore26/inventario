@@ -248,7 +248,7 @@ function exchangesBlock(s) {
 function exchangeReceiptHTML(e) {
   const name = state.settings.storeName, row = (l, r, cls = '') => `<div class="tk-row ${cls}"><span>${l}</span><span>${r}</span></div>`;
   const lines = dir => e.items.filter(i => i.dir === dir).map(i => `<div class="tk-item"><div>${esc(i.name)}</div>${i.sku ? `<div class="tk-small tk-sku">Cód. ${esc(i.sku)}</div>` : ''}${row(`${i.qty} × ${money(i.price)} · T${esc(i.size)}${i.condition === 'danado' ? ' · dañado' : ''}`, money(i.qty * i.price))}</div>`).join('');
-  return `<div class="ticket" data-w="${ticketMm()}">
+  return `<div class="ticket" data-w="${ticketMm()}" style="${ticketStyle()}">
     <img class="tk-logo" src="assets/logo-wordmark.png" alt="${esc(name)}">
     <div class="tk-store">${esc(name.toUpperCase())}</div>
     <div class="tk-center">Comprobante de cambio ${exCode(e)}<br>${fmtDate(e.date)}</div>
@@ -269,8 +269,7 @@ function exchangeReceiptHTML(e) {
 function showExchange(id) {
   const e = state.exchanges.find(x => x.id === id); if (!e) return;
   const mm = ticketMm();
-  openModal(`<div class="tk-toolbar no-print"><label class="f">Papel de la impresora
-      <select id="tkWidth"><option value="80"${mm === '80' ? ' selected' : ''}>Rollo de 80 mm (estándar)</option><option value="58"${mm === '58' ? ' selected' : ''}>Rollo de 58 mm (angosto)</option></select></label></div>
+  openModal(`${ticketToolbarHTML()}
     <div class="ticket-wrap">${exchangeReceiptHTML(e)}</div>
     <div class="foot no-print"><button class="btn" data-action="closeModal">Cerrar</button>${e.saleId ? `<button class="btn" data-action="viewSale" data-id="${esc(e.saleId)}">Ver ticket de la venta</button>` : ''}<button class="btn primary" data-action="printReceipt">Imprimir comprobante</button></div>`);
 }

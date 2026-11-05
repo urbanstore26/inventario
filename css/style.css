@@ -219,17 +219,17 @@ td .meta{color:var(--smoke);font-size:12px}
 .tk-toolbar{margin-bottom:12px}
 .tk-toolbar select{width:auto;min-width:220px}
 .ticket-wrap{background:var(--taupe);border-radius:var(--r-card);padding:20px;display:flex;justify-content:center;overflow-x:auto}
-.ticket{flex:none;background:#fff;color:#000;width:72mm;padding:5mm 4mm 6mm;font:12px/1.4 var(--font-mono);letter-spacing:0;box-shadow:var(--shadow)}
-.ticket[data-w="58"]{width:50mm;padding:4mm 2mm 5mm;font-size:11px}
+.ticket{flex:none;background:#fff;color:#000;width:var(--tkw,72mm);padding:5mm 4mm 6mm;font:calc(12px * var(--tks,1))/1.4 var(--font-mono);letter-spacing:0;box-shadow:var(--shadow)}
+.ticket[data-w="58"]{width:var(--tkw,50mm);padding:4mm 2mm 5mm;font-size:calc(11px * var(--tks,1))}
 .tk-logo{display:block;width:92%;height:auto;margin:0 auto 6px}
-.tk-store{text-align:center;font-weight:700;font-size:13px;letter-spacing:.06em;margin-bottom:2px}
+.tk-store{text-align:center;font-weight:700;font-size:calc(13px * var(--tks,1));letter-spacing:.06em;margin-bottom:2px}
 .tk-center{text-align:center}
 .tk-sep{border-top:1px dashed #000;margin:8px 0}
 .tk-row{display:flex;justify-content:space-between;gap:8px}
 .tk-row span:last-child{white-space:nowrap}
 .tk-item{margin-bottom:5px}
-.tk-total{font-weight:700;font-size:15px;margin:4px 0}
-.tk-small{font-size:10px;margin-top:3px}
+.tk-total{font-weight:700;font-size:calc(15px * var(--tks,1));margin:4px 0}
+.tk-small{font-size:calc(10px * var(--tks,1));margin-top:3px}
 
 /* ---------- responsive ---------- */
 @media (max-width:860px){
@@ -442,3 +442,12 @@ input.xs{width:72px}
 .inv-pdf svg{width:40px;height:40px;color:var(--pink)}
 .linkbtn{border:0;background:none;padding:0;font:inherit;color:var(--cyan);text-decoration:underline;cursor:pointer}
 .linkbtn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+/* Ajustes de impresión del ticket */
+.print-adj{margin-top:10px;border:1px solid var(--line);border-radius:var(--r-small);background:var(--taupe)}
+.print-adj>summary{cursor:pointer;padding:9px 14px;font-weight:500;font-size:14px}
+.print-adj .pa-in{padding:4px 14px 14px;display:grid;gap:12px}
+.print-adj .pa-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.print-adj ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:13px;color:var(--graphite)}
+.print-adj .acts{justify-content:flex-start}
+@media(max-width:700px){.print-adj .pa-grid{grid-template-columns:1fr 1fr}}

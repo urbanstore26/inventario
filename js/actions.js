@@ -104,6 +104,8 @@ const ACTIONS = {
   viewSale: el => showSale(el.dataset.id),
   voidSale: el => voidSale(el.dataset.id),
   printReceipt: printTicket,
+  printTest: printTestPage,
+  tkReset: resetTicketCfg,
   /* Misma estructura que la hoja de Excel: SKU · Modelo · Color · Talla · Costo · Precio venta · Stock Inicial · Vendidos · Stock actual · Ganancia unidad · Valor Inventario · Estado */
   exportInv: () => run(null, async () => {
     const data = (await store.variantReport()).sort((a, b) => a.sku.localeCompare(b.sku, 'es', {numeric: true}) || parseFloat(a.size) - parseFloat(b.size));
