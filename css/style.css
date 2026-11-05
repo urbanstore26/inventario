@@ -446,6 +446,8 @@ input.xs{width:72px}
 .print-adj .pa-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .print-adj ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:13px;color:var(--graphite)}
 .print-adj .acts{justify-content:flex-start}
+.print-adj .tk-flip{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--graphite);cursor:pointer}
+.print-adj .tk-flip input{margin-top:3px;flex:none}
 @media(max-width:700px){.print-adj .pa-grid{grid-template-columns:1fr 1fr}}
 
 /* Impresión desde celular y tablet: el ticket va en #printRoot y lo demás se oculta */
