@@ -10,7 +10,7 @@ const STORE_SOCIALS = [
   {label: 'Facebook', value: 'Plante Urban Store'},
   {label: 'WhatsApp', value: '6985-4199'},
 ];
-const STORE_ADDRESS = 'Barrio Paleca, Avenida Paleca, San Salvador Centro, San Salvador';
+const STORE_ADDRESS = 'Barrio Paleca, Avenida Paleca, Ciudad Delgado, San Salvador Centro, San Salvador';
 function addressBlock() {
   return STORE_ADDRESS.trim() ? `<div class="tk-center tk-small tk-address">${esc(STORE_ADDRESS.trim())}</div>` : '';
 }
