@@ -265,7 +265,7 @@ function exchangeReceiptHTML(e) {
     ${e.by ? row('Atendió', esc(e.by)) : ''}
     <div class="tk-sep"></div>
     <div class="tk-center tk-small">Conserva este comprobante</div>
-    ${socialsBlock()}
+    ${ticketFooter()}
   </div>`;
 }
 function showExchange(id) {

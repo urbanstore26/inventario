@@ -231,6 +231,8 @@ td .meta{color:var(--smoke);font-size:12px}
 .tk-item,.tk-row,.tk-sep{break-inside:avoid;page-break-inside:avoid}   /* un renglón nunca queda partido entre dos hojas */
 .tk-total{font-weight:700;font-size:calc(15px * var(--tks,1));margin:4px 0}
 .tk-small{font-size:calc(10px * var(--tks,1));margin-top:3px}
+.tk-qrbox{margin-top:6px;break-inside:avoid;page-break-inside:avoid}
+.tk-qr{display:block;margin:3px auto 0;background:#fff}
 
 /* ---------- responsive ---------- */
 @media (max-width:860px){

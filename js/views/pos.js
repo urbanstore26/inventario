@@ -129,7 +129,7 @@ function receiptHTML(s) {
     <div class="tk-sep"></div>
     <div class="tk-center">¡Gracias por tu compra!</div>
     <div class="tk-center tk-small">Conserva este comprobante</div>
-    ${socialsBlock()}
+    ${ticketFooter()}
   </div>`;
 }
 function showSale(id) {
