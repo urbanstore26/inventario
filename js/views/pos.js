@@ -148,7 +148,7 @@ function showSale(id) {
 const clampNum = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 function ticketCfg() {
   const mm = +ticketMm(), get = (k, d) => { try { const v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? v : d; } catch (e) { return d; } };
-  return {mm, w: clampNum(get('pu_tk_w_' + mm, mm === 58 ? 50 : 72), 30, mm), ml: clampNum(get('pu_tk_ml', 0), 0, 20), scale: clampNum(get('pu_tk_s', 100), 70, 160) / 100, end: clampNum(get('pu_tk_end', 3), 0, 30), top: clampNum(get('pu_tk_top', 1), 0, 20), len: clampNum(get('pu_tk_len', 100), 0, 400), flip: true /* orientación fija: el ticket se manda girado 180° (driver en Vertical 180°) */};
+  return {mm, w: clampNum(get('pu_tk_w_' + mm, mm === 58 ? 50 : 72), 30, mm), ml: clampNum(get('pu_tk_ml', 0), 0, 20), scale: clampNum(get('pu_tk_s', 100), 70, 160) / 100, end: clampNum(get('pu_tk_end', 3), 0, 30), top: clampNum(get('pu_tk_top', 1), 0, 20), len: clampNum(get('pu_tk_len', 100), 0, 400)};
 }
 const ticketStyle = () => { const c = ticketCfg(); return `--tkw:${c.w}mm;--tks:${c.scale}`; };
 function applyTicketCfg() {
@@ -216,13 +216,13 @@ function ticketPrintHTML(bodyHtml, c, extra = '') {
     @page{size:${c.mm}mm 200mm;margin:0}
     *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     html,body{margin:0;padding:0;background:#fff;color:#000;width:${c.mm}mm}
-    .ticket{box-shadow:none;margin:0 0 0 ${c.ml}mm;padding-top:${c.top}mm;padding-bottom:${c.flip ? c.end : 0}mm;width:${c.w}mm${c.len ? `;min-height:${c.len}mm` : ''}${c.flip ? ';transform:rotate(180deg)' : ''}}
+    .ticket{box-shadow:none;margin:0 0 0 ${c.ml}mm;padding-top:${c.top}mm;padding-bottom:${c.end}mm;width:${c.w}mm${c.len ? `;min-height:${c.len}mm` : ''}}
     ${PRINT_EXTRA}${extra}
   </style></head><body>${abs}</body></html>`;
 }
 /* Alto de la hoja en mm: el del ticket medido (nunca menor, para no cortarlo) y, si hay un largo fijo, exactamente ese largo cuando el ticket cabe */
 function sheetHeightMm(px, c) {
-  const mm = px * 25.4 / 96 + (c.flip ? 0 : c.end);
+  const mm = px * 25.4 / 96;
   return Math.max(c.len && mm <= c.len + 0.05 ? c.len : Math.ceil(mm), c.mm + 20);   // siempre más alto que ancho: hoja vertical
 }
 /* Prepara el iframe oculto: espera estilos y logo, mide el alto y fija la hoja (ancho × alto, vertical) */
@@ -237,7 +237,7 @@ async function preparePrintFrame(html, c) {
     await Promise.all([...d.querySelectorAll('link[rel=stylesheet]')].map(l => l.sheet ? 0 : new Promise(r => { l.onload = l.onerror = r; })));
     await Promise.all([...d.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
     if (d.fonts && d.fonts.ready) await d.fonts.ready;
-    // con el ticket girado 180° el papel sobrante va dentro del ticket (queda después de la última línea, donde se rasga)
+    // el papel sobrante va dentro del ticket (después de la última línea)
     const h = sheetHeightMm(d.body.scrollHeight, c);   // siempre más alto que ancho: hoja vertical
     d.head.insertAdjacentHTML('beforeend', `<style>@page{size:${c.mm}mm ${h}mm;margin:0}</style>`);
     return {fr, h};
@@ -252,8 +252,7 @@ async function printDocument(html, c) {
 async function printInPage(bodyHtml, c, extra = '') {
   document.querySelectorAll('#printRoot,#printRootStyle').forEach(e => e.remove());
   const root = document.createElement('div'); root.id = 'printRoot';
-  root.style.cssText = `--pr-w:${c.mm}mm;--pr-ml:${c.ml}mm;--pr-pt:${c.top}mm;--pr-pb:${c.flip ? c.end : 0}mm;--pr-min:${c.len ? c.len + 'mm' : '0'};--pr-tw:${c.w}mm`;
-  if (c.flip) root.style.transform = 'rotate(180deg)';
+  root.style.cssText = `--pr-w:${c.mm}mm;--pr-ml:${c.ml}mm;--pr-pt:${c.top}mm;--pr-pb:${c.end}mm;--pr-min:${c.len ? c.len + 'mm' : '0'};--pr-tw:${c.w}mm`;
   root.innerHTML = bodyHtml.replace(/ style="[^"]*--tkw[^"]*"/, m => m);
   const st = document.createElement('style'); st.id = 'printRootStyle'; st.textContent = extra;
   document.head.appendChild(st); document.body.appendChild(root);
@@ -335,15 +334,11 @@ async function deflateBytes(bytes) {
   return new Uint8Array(await new Response(cs.readable).arrayBuffer());
 }
 async function ticketToPdf() {
-  const c = ticketCfg(); let {canvas} = await ticketToBlob({top: c.top, bottom: c.flip ? c.end : 0, min: c.len});
-  if (c.flip) {   // girado 180°
-    const r = document.createElement('canvas'); r.width = canvas.width; r.height = canvas.height;
-    const g = r.getContext('2d'); g.translate(r.width, r.height); g.rotate(Math.PI); g.drawImage(canvas, 0, 0); canvas = r;
-  }
+  const c = ticketCfg(); const {canvas} = await ticketToBlob({top: c.top, bottom: c.end, min: c.len});
   const W = canvas.width, H = canvas.height, px = canvas.getContext('2d').getImageData(0, 0, W, H).data, gray = new Uint8Array(W * H);
   for (let i = 0, j = 0; i < px.length; i += 4, j++) gray[j] = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
   const img = await deflateBytes(gray), pt = mm => mm * 72 / 25.4, n2 = v => v.toFixed(2);
-  const wPt = W * 72 / 203, hPt = H * 72 / 203, pw = pt(c.mm), ph = hPt + (c.flip ? 0 : pt(c.end)), x = pt(c.ml);
+  const wPt = W * 72 / 203, hPt = H * 72 / 203, pw = pt(c.mm), ph = hPt, x = pt(c.ml);
   const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
   const add = d => { const u = typeof d === 'string' ? enc.encode(d) : d; parts.push(u); len += u.length; };
   const obj = (n, body) => { offs[n] = len; add(`${n} 0 obj\n${body}\nendobj\n`); };
