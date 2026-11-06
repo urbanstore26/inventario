@@ -251,6 +251,7 @@ function exchangeReceiptHTML(e) {
   return `<div class="ticket" data-w="${ticketMm()}" style="${ticketStyle()}">
     <img class="tk-logo" src="assets/logo-wordmark.png" alt="${esc(name)}">
     <div class="tk-store">${esc(name.toUpperCase())}</div>
+    ${addressBlock()}
     <div class="tk-center">Comprobante de cambio ${exCode(e)}<br>${fmtDate(e.date)}</div>
     <div class="tk-center"><b>${esc((EXCHANGE_REASONS[e.reason] || {}).label || e.reason)}</b></div>
     ${e.saleNum ? `<div class="tk-center tk-small">Venta original V-${pad(e.saleNum, 4)}</div>` : ''}

@@ -108,6 +108,7 @@ function receiptHTML(s) {
   return `<div class="ticket" data-w="${ticketMm()}" style="${ticketStyle()}">
     <img class="tk-logo" src="assets/logo-wordmark.png" alt="${esc(name)}">
     <div class="tk-store">${esc(name.toUpperCase())}</div>
+    ${addressBlock()}
     <div class="tk-center">Comprobante V-${pad(s.num, 4)}<br>${fmtDate(s.date)}${s.status === 'anulada' ? '<br><b>*** ANULADA ***</b>' : ''}</div>
     <div class="tk-sep"></div>
     ${s.items.map(i => `<div class="tk-item"><div>${esc(i.name)}</div>${i.sku ? `<div class="tk-small tk-sku">Cód. ${esc(i.sku)}</div>` : ''}${row(`${i.qty} × ${money(i.price)} · T${esc(i.size)}`, money(i.qty * i.price))}${(i.listPrice ?? i.price) > i.price ? `<div class="tk-small tk-off">Antes ${money(i.listPrice)}${i.discountName ? ' · ' + esc(i.discountName) : ''}</div>` : ''}</div>`).join('')}
