@@ -37,6 +37,7 @@ document.addEventListener('input', e => {
   switch (t.id) {
     case 'invQ': ui.inv.q = t.value; drawInv(); break;
     case 'movQ': ui.mov.q = t.value; drawMov(); break;
+    case 'salQ': ui.sal.q = t.value; drawSales(); break;
     case 'usrQ': ui.usr.q = t.value; drawUsers(); break;
     case 'dscQ': ui.dsc.q = t.value; drawDiscounts(); break;
     case 'astQ': ui.ast.q = t.value; drawAssetRows(); break;

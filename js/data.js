@@ -80,7 +80,7 @@ function nextSku() {
   return 'PU-' + pad(max + 1, 4);
 }
 /* Estado de la interfaz (filtros por vista) */
-const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: '', tab: 'movimientos'}, exc: {q: '', reason: ''}, sal: {from: '', to: '', fromT: '', toT: '', method: '', status: ''}, usr: {q: ''}, dsc: {q: ''}, ast: {tab: 'bienes', q: '', cat: '', status: '', plan: '', evq: '', evkind: '', exq: '', exkind: '', explan: '', exmonth: ''}};
+const ui = {inv: {q: '', cat: '', brand: '', status: ''}, mov: {q: '', type: '', pid: '', tab: 'movimientos'}, exc: {q: '', reason: ''}, sal: {q: '', from: '', to: '', fromT: '', toT: '', method: '', status: ''}, usr: {q: ''}, dsc: {q: ''}, ast: {tab: 'bienes', q: '', cat: '', status: '', plan: '', evq: '', evkind: '', exq: '', exkind: '', explan: '', exmonth: ''}};
 
 
 /* Cuentas a cuyo nombre se puede registrar una venta: cualquier cuenta activa, sin contar la propia (la opción "Yo").

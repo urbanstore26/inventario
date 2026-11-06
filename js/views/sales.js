@@ -5,6 +5,7 @@ function renderSales() {
   const f = ui.sal;
   $('#view').innerHTML = `
   <div class="toolbar">
+    <input class="grow" id="salQ" type="search" placeholder="Buscar N.º de ticket (ej. V-0012 o 12)…" value="${esc(f.q)}">
     <label class="f">Desde<input type="date" id="salFrom" value="${esc(f.from)}"></label>
     <label class="f">Hasta<input type="date" id="salTo" value="${esc(f.to)}"></label>
     <label class="f">Hora desde<input type="time" id="salFromT" value="${esc(f.fromT)}"></label>
@@ -17,7 +18,9 @@ function renderSales() {
 }
 function drawSales() {
   const f = ui.sal;
-  const rows = state.sales.filter(s => (!f.from || dayKey(s.date) >= f.from) && (!f.to || dayKey(s.date) <= f.to) && timeInRange(s.date, f.fromT, f.toT) && (!f.method || s.method === f.method) && (!f.status || s.status === f.status));
+  const qd = String(f.q || '').replace(/\D/g, '');      // acepta "V-0012", "0012" o "12"
+  const qNum = qd ? String(Number(qd)) : '';
+  const rows = state.sales.filter(s => (!qd || (qNum !== '0' ? String(s.num).includes(qNum) : pad(s.num, 4).includes(qd))) && (!f.from || dayKey(s.date) >= f.from) && (!f.to || dayKey(s.date) <= f.to) && timeInRange(s.date, f.fromT, f.toT) && (!f.method || s.method === f.method) && (!f.status || s.status === f.status));
   const ok = rows.filter(s => s.status === 'completada'), tot = ok.reduce((a, s) => a + s.total, 0), prof = ok.reduce((a, s) => a + s.total - s.cost, 0);
   $('#salTable').innerHTML = rows.length ? `<div class="tablewrap"><table><thead><tr><th>N.º</th><th>Fecha</th><th>Detalle</th><th>Pago</th><th class="right">Total</th>${can('costs.view') ? '<th class="right">Utilidad</th>' : ''}<th>Estado</th><th></th></tr></thead><tbody>
     ${rows.slice(0, 300).map(s => `<tr><td class="num"><b>V-${pad(s.num, 4)}</b></td><td class="num">${fmtDate(s.date)}</td>
