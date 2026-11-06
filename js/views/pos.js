@@ -215,7 +215,7 @@ function ticketPrintHTML(bodyHtml, c, extra = '') {
     @page{size:${c.mm}mm 200mm;margin:0}
     *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     html,body{margin:0;padding:0;background:#fff;color:#000;width:${c.mm}mm}
-    .ticket{box-shadow:none;margin:0 0 0 ${c.ml}mm;padding-top:${c.top}mm;padding-bottom:0;width:${c.w}mm${c.flip ? ';transform:rotate(180deg)' : ''}}
+    .ticket{box-shadow:none;margin:0 0 0 ${c.ml}mm;padding-top:${c.top}mm;padding-bottom:${c.flip ? c.end : 0}mm;width:${c.w}mm${c.flip ? ';transform:rotate(180deg)' : ''}}
     ${PRINT_EXTRA}${extra}
   </style></head><body>${abs}</body></html>`;
 }
@@ -231,7 +231,8 @@ async function preparePrintFrame(html, c) {
     await Promise.all([...d.querySelectorAll('link[rel=stylesheet]')].map(l => l.sheet ? 0 : new Promise(r => { l.onload = l.onerror = r; })));
     await Promise.all([...d.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
     if (d.fonts && d.fonts.ready) await d.fonts.ready;
-    const h = Math.max(Math.ceil(d.body.scrollHeight * 25.4 / 96) + c.end, c.mm + 20);   // siempre más alto que ancho: hoja vertical
+    // con el ticket girado 180° el papel sobrante va dentro del ticket (queda después de la última línea, donde se rasga)
+    const h = Math.max(Math.ceil(d.body.scrollHeight * 25.4 / 96) + (c.flip ? 0 : c.end), c.mm + 20);   // siempre más alto que ancho: hoja vertical
     d.head.insertAdjacentHTML('beforeend', `<style>@page{size:${c.mm}mm ${h}mm;margin:0}</style>`);
     return {fr, h};
   } catch (e) { fr.remove(); throw e; }
@@ -245,7 +246,7 @@ async function printDocument(html, c) {
 async function printInPage(bodyHtml, c, extra = '') {
   document.querySelectorAll('#printRoot,#printRootStyle').forEach(e => e.remove());
   const root = document.createElement('div'); root.id = 'printRoot';
-  root.style.cssText = `--pr-w:${c.mm}mm;--pr-ml:${c.ml}mm;--pr-pt:${c.top}mm;--pr-tw:${c.w}mm`;
+  root.style.cssText = `--pr-w:${c.mm}mm;--pr-ml:${c.ml}mm;--pr-pt:${c.top}mm;--pr-pb:${c.flip ? c.end : 0}mm;--pr-tw:${c.w}mm`;
   if (c.flip) root.style.transform = 'rotate(180deg)';
   root.innerHTML = bodyHtml.replace(/ style="[^"]*--tkw[^"]*"/, m => m);
   const st = document.createElement('style'); st.id = 'printRootStyle'; st.textContent = extra;
@@ -253,7 +254,7 @@ async function printInPage(bodyHtml, c, extra = '') {
   const cleanup = () => { root.remove(); st.remove(); document.body.classList.remove('print-root-mode'); window.removeEventListener('afterprint', cleanup); };
   try {
     await Promise.all([...root.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
-    const h = Math.max(Math.ceil(root.getBoundingClientRect().height * 25.4 / 96) + c.end, c.mm + 20);
+    const h = Math.max(Math.ceil(root.getBoundingClientRect().height * 25.4 / 96) + (c.flip ? 0 : c.end), c.mm + 20);
     st.textContent = `@page{size:${c.mm}mm ${h}mm;margin:0}` + extra;
     document.body.classList.add('print-root-mode');
     window.addEventListener('afterprint', cleanup);
@@ -327,7 +328,7 @@ async function deflateBytes(bytes) {
   return new Uint8Array(await new Response(cs.readable).arrayBuffer());
 }
 async function ticketToPdf() {
-  const c = ticketCfg(); let {canvas} = await ticketToBlob({top: c.top, bottom: 0});
+  const c = ticketCfg(); let {canvas} = await ticketToBlob({top: c.top, bottom: c.flip ? c.end : 0});
   if (c.flip) {   // girado 180°
     const r = document.createElement('canvas'); r.width = canvas.width; r.height = canvas.height;
     const g = r.getContext('2d'); g.translate(r.width, r.height); g.rotate(Math.PI); g.drawImage(canvas, 0, 0); canvas = r;
@@ -335,7 +336,7 @@ async function ticketToPdf() {
   const W = canvas.width, H = canvas.height, px = canvas.getContext('2d').getImageData(0, 0, W, H).data, gray = new Uint8Array(W * H);
   for (let i = 0, j = 0; i < px.length; i += 4, j++) gray[j] = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
   const img = await deflateBytes(gray), pt = mm => mm * 72 / 25.4, n2 = v => v.toFixed(2);
-  const wPt = W * 72 / 203, hPt = H * 72 / 203, pw = pt(c.mm), ph = hPt + pt(c.end), x = pt(c.ml);
+  const wPt = W * 72 / 203, hPt = H * 72 / 203, pw = pt(c.mm), ph = hPt + (c.flip ? 0 : pt(c.end)), x = pt(c.ml);
   const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
   const add = d => { const u = typeof d === 'string' ? enc.encode(d) : d; parts.push(u); len += u.length; };
   const obj = (n, body) => { offs[n] = len; add(`${n} 0 obj\n${body}\nendobj\n`); };
