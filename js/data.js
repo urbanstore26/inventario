@@ -2,6 +2,18 @@
 /* Estado en memoria y reglas de dominio (la persistencia está en js/store/) */
 
 const DEFAULT_SIZES = ['35','36','37','38','39','40','41','42','43','44','45','46'];
+/* Redes sociales de la tienda: se imprimen al final de todos los tickets (venta y comprobante de cambio).
+   Una línea por red; si el valor queda vacío, esa línea no se imprime. */
+const STORE_SOCIALS = [
+  {label: 'Instagram', value: '@plante_urban'},
+  {label: 'TikTok', value: '@planteurbanstore'},
+  {label: 'Facebook', value: 'Plante Urban Store'},
+  {label: 'WhatsApp', value: '6985-4199'},
+];
+function socialsBlock() {
+  const rows = STORE_SOCIALS.filter(s => String(s.value).trim());
+  return rows.length ? `<div class="tk-sep"></div>${rows.map(s => `<div class="tk-center tk-small tk-social">${esc(s.label)}: ${esc(String(s.value).trim())}</div>`).join('')}` : '';
+}
 const CATEGORIES = ['Tenis deportivos', 'Casual urbano', 'Botas', 'Sandalias y slides', 'Formal'];
 const MOVE_TYPES = {
   inicial:    {label: 'Stock inicial', cls: 'b-info'},
