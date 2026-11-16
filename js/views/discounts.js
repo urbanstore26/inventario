@@ -21,7 +21,7 @@ function renderDiscounts() {
     <button class="btn primary" data-action="newDiscount">+ Nuevo descuento</button>
   </div>
   <div id="dscTable"></div>
-  <p class="muted">Los productos con un descuento vigente salen con el precio rebajado en el punto de venta. Si un producto está en varias ofertas, se aplica la de menor precio (no se suman).</p>`;
+  <p class="muted">Los productos con un descuento vigente salen con el precio rebajado en el punto de venta. Si un producto está en varias ofertas, se aplica la de menor precio (no se suman). Los descuentos, y el descuento en $ del punto de venta, solo aplican en pagos en efectivo: con tarjeta o transferencia se cobra el precio normal.</p>`;
   drawDiscounts();
 }
 

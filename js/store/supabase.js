@@ -190,7 +190,7 @@ const SupabaseStore = {
   async sell({items, method, discount, customer, note, paid, seller}) {
     const args = {
       p_items: items.map(i => ({product_id: i.pid, size: i.size, qty: i.qty})),
-      p_method: method, p_discount: discount || 0, p_customer: customer || '', p_paid: paid || 0
+      p_method: method, p_discount: method === 'Efectivo' ? (discount || 0) : 0, p_customer: customer || '', p_paid: paid || 0
     };
     if ((note || '').trim()) args.p_note = note.trim().slice(0, 200);   // solo si se escribió: sin observación funciona aunque falte la migración
     if (seller) args.p_seller = seller;   // solo se envía si se eligió: el servidor valida el permiso y que sea un vendedor activo

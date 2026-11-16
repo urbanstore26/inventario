@@ -32,21 +32,26 @@ function drawPosSizes() {
       return `<button class="size num" data-action="posAdd" data-size="${esc(s)}" ${left <= 0 ? 'disabled' : ''}>${esc(s)}<small>${left} disp.</small></button>`;
     }).join('')}</div>`;
 }
+/* Los descuentos (ofertas de producto y descuento en $) solo aplican al pagar en efectivo; con tarjeta o transferencia va el precio normal */
+const discountsApply = () => pos.method === 'Efectivo';
+const lineUnit = i => discountsApply() ? i.price : (i.listPrice ?? i.price);
 const cartTotals = () => {
-  const sub = pos.cart.reduce((a, i) => a + i.price * i.qty, 0), disc = Math.min(Math.max(Number(pos.discount) || 0, 0), sub), total = sub - disc;
-  const savings = pos.cart.reduce((a, i) => a + ((i.listPrice ?? i.price) - i.price) * i.qty, 0);   // ahorro por ofertas
+  const sub = pos.cart.reduce((a, i) => a + lineUnit(i) * i.qty, 0), disc = discountsApply() ? Math.min(Math.max(Number(pos.discount) || 0, 0), sub) : 0, total = sub - disc;
+  const savings = discountsApply() ? pos.cart.reduce((a, i) => a + ((i.listPrice ?? i.price) - i.price) * i.qty, 0) : 0;   // ahorro por ofertas
   return {sub, disc, total, savings, paid: Number(pos.paid) || 0};
 };
 function drawCart() {
   const t = cartTotals();
   $('#posCart').innerHTML = pos.cart.length ? `
-    ${pos.cart.map((i, n) => `<div class="line"><div class="prod">${thumb(getProduct(i.pid) || {name: i.name}, 'sm')}<div><b>${esc(i.name)}</b><div class="meta muted">Talla ${esc(i.size)} · ${i.offer ? `<s class="price-old">${money(i.listPrice)}</s> ` : ''}${money(i.price)}${i.offer ? ` · <span class="offer-name">${esc(i.offer)}</span>` : ''}</div></div></div>
+    ${pos.cart.map((i, n) => `<div class="line"><div class="prod">${thumb(getProduct(i.pid) || {name: i.name}, 'sm')}<div><b>${esc(i.name)}</b><div class="meta muted">Talla ${esc(i.size)} · ${i.offer && discountsApply() ? `<s class="price-old">${money(i.listPrice)}</s> ` : ''}${money(lineUnit(i))}${i.offer ? (discountsApply() ? ` · <span class="offer-name">${esc(i.offer)}</span>` : ' · <span class="offer-name">oferta solo en efectivo</span>') : ''}</div></div></div>
       <div class="qty"><button data-action="posDec" data-i="${n}" aria-label="Menos">−</button><span class="num">${i.qty}</span><button data-action="posInc" data-i="${n}" aria-label="Más">+</button></div>
-      <div class="num right" style="min-width:70px"><b>${money(i.price * i.qty)}</b> <button class="btn sm danger" data-action="posRm" data-i="${n}" aria-label="Quitar">Quitar</button></div></div>`).join('')}
+      <div class="num right" style="min-width:70px"><b>${money(lineUnit(i) * i.qty)}</b> <button class="btn sm danger" data-action="posRm" data-i="${n}" aria-label="Quitar">Quitar</button></div></div>`).join('')}
     <div class="totals">
       <div class="r"><span class="muted">Subtotal</span><span class="num" id="tSub">${money(t.sub)}</span></div>
       ${t.savings > 0.004 ? `<div class="r"><span class="muted">Ahorro por ofertas</span><span class="num">-${money(t.savings)}</span></div>` : ''}
-      <div class="r"><span class="muted">Descuento ($)</span><input id="posDisc" type="number" min="0" step="0.01" value="${esc(pos.discount)}" placeholder="0.00"></div>
+      ${discountsApply()
+        ? `<div class="r"><span class="muted">Descuento ($)</span><input id="posDisc" type="number" min="0" step="0.01" value="${esc(pos.discount)}" placeholder="0.00"></div>`
+        : '<div class="r"><span class="muted">Descuentos</span><span class="muted">solo en efectivo</span></div>'}
       <div class="r grand"><span>Total</span><span class="num" id="tTotal">${money(t.total)}</span></div>
     </div>
     <div class="form-grid" style="margin-top:12px">
@@ -86,7 +91,7 @@ async function checkout() {
   await run($('[data-action=posCheckout]'), async () => {
     let sale;
     try {
-      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: Number(pos.discount) || 0, customer: pos.customer, note: pos.note, paid: Number(pos.paid) || 0, seller: pos.seller});
+      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: discountsApply() ? Number(pos.discount) || 0 : 0, customer: pos.customer, note: pos.note, paid: Number(pos.paid) || 0, seller: pos.seller});
     } catch (e) {
       await store.reload().catch(() => {});          // el stock pudo cambiar en otro equipo
       drawPosResults(); drawPosSizes(); drawCart();

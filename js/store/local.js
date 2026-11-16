@@ -209,10 +209,11 @@ const LocalStore = {
         if (!p) throw new Error('Un producto del carrito ya no existe');
         moveStock(p, i.size, -i.qty, 'venta', 'Venta V-' + pad(num, 4), id);
         const e = priceOf(p);   // precio con la mejor oferta vigente
-        return {pid: p.id, sku: p.sku, name: p.name, size: i.size, qty: i.qty, price: e.price, listPrice: e.list, discountName: e.name, cost: p.cost};
+        const promo = method === 'Efectivo';   // los descuentos solo aplican en efectivo: con tarjeta o transferencia va el precio normal
+        return {pid: p.id, sku: p.sku, name: p.name, size: i.size, qty: i.qty, price: promo ? e.price : e.list, listPrice: e.list, discountName: promo ? e.name : '', cost: p.cost};
       });
       const r2 = n => Math.round(n * 100) / 100;     // montos siempre a centavos
-      const sub = r2(lines.reduce((a, i) => a + i.price * i.qty, 0)), disc = r2(Math.min(Math.max(Number(discount) || 0, 0), sub)), total = r2(sub - disc);
+      const sub = r2(lines.reduce((a, i) => a + i.price * i.qty, 0)), disc = method === 'Efectivo' ? r2(Math.min(Math.max(Number(discount) || 0, 0), sub)) : 0, total = r2(sub - disc);
       const cash = method === 'Efectivo' && paid > 0;
       if (cash && paid < total) throw new Error('El monto recibido es menor al total');
       const sale = {id, num, date: new Date().toISOString(), customer: (customer || '').trim(), note: (note || '').trim().slice(0, 200), seller: who.name, sellerId: who.id, cashier, method, items: lines, subtotal: sub, discount: disc, total, cost: r2(lines.reduce((a, i) => a + i.cost * i.qty, 0)), paid: cash ? paid : total, change: cash ? r2(paid - total) : 0, status: 'completada'};
