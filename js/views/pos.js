@@ -66,16 +66,21 @@ function drawCart() {
     <button class="btn block" style="margin-top:8px;padding:8px" data-action="posClear">Vaciar carrito</button>`
     : '<div class="empty">El carrito está vacío.<br>Busca un producto y elige la talla.</div>';
 }
-/* Administrador y cajero: venden a su nombre ("Yo") o eligen cualquier otra cuenta activa */
+/* Administrador y cajero eligen quién hizo la venta: en la lista salen solo las cuentas activas con rol Vendedor.
+   Si hay vendedores, es obligatorio elegir uno (salvo que quien cobra sea también Vendedor: puede quedar en "Yo"). */
+const SELLER_ROLE = 'vendedor';
+const vendorList = () => sellerList().filter(s => s.role === roleName(SELLER_ROLE));
+const mustPickSeller = () => can('sales.assign_seller') && store.user.role !== SELLER_ROLE && vendorList().length > 0;
 function sellerOptions() {
-  return `<option value="">${esc(`Yo (${store.user.name})`)}</option>` + sellerList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}${s.role ? ' · ' + esc(s.role) : ''}</option>`).join('');
+  const first = mustPickSeller() ? 'Selecciona un vendedor…' : `Yo (${store.user.name})`;
+  return `<option value="">${esc(first)}</option>` + vendorList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
 }
 /* Aviso bajo el selector cuando la lista de vendedores no se pudo cargar o está vacía */
 function sellerNote() {
   const err = state.sellersError;
   if (err === 'missing') return '<span class="meta warn">No se pudo cargar la lista de vendedores: falta ejecutar en Supabase la migración 20261023110000_cashier_role.sql.</span>';
   if (err) return `<span class="meta warn">No se pudo cargar la lista de vendedores: ${esc(err)}</span>`;
-  if (!sellerList().length) return '<span class="meta warn">No hay otras cuentas activas. Crea usuarios en Usuarios.</span>';
+  if (!vendorList().length) return '<span class="meta warn">No hay otras cuentas activas con rol Vendedor: la venta queda a tu nombre. Créalas o cambia el rol en Usuarios.</span>';
   return '';
 }
 function updatePosTotals() {
@@ -88,6 +93,8 @@ async function checkout() {
   const t = cartTotals();
   if (!pos.cart.length) return;
   if (pos.method === 'Efectivo' && pos.paid !== '' && t.paid < t.total) return toast('El monto recibido es menor al total', true);
+  if (!vendorList().some(s => s.id === pos.seller)) pos.seller = '';   // la elección anterior ya no está en la lista
+  if (mustPickSeller() && !pos.seller) return toast('Selecciona el vendedor que realiza la venta', true);
   await run($('[data-action=posCheckout]'), async () => {
     let sale;
     try {

@@ -198,7 +198,7 @@ const LocalStore = {
     let who = {id: by.id, name: by.name}, cashier = '';
     if (seller && seller !== by.id) {
       if (!can('sales.assign_seller')) throw new Error('No tienes permiso para elegir el vendedor');
-      const s = sellerList().find(x => x.id === seller);
+      const s = vendorList().find(x => x.id === seller);
       if (!s) throw new Error('El vendedor elegido no es válido o está inactivo');
       who = s; cashier = by.name;
     }
