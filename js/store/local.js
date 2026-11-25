@@ -192,6 +192,7 @@ const LocalStore = {
   },
 
   async sell({items, method, discount, customer, note, paid, seller}) {
+    if (Number(discount) > 0 && !isAdmin()) throw new Error('Solo un administrador puede aplicar un descuento en dinero');
     // vender a nombre de otra persona: solo con el permiso y solo a un vendedor activo
     const by = this.user;
     let who = {id: by.id, name: by.name}, cashier = '';

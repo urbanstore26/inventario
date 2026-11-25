@@ -36,7 +36,7 @@ function drawPosSizes() {
 const discountsApply = () => pos.method === 'Efectivo';
 const lineUnit = i => discountsApply() ? i.price : (i.listPrice ?? i.price);
 const cartTotals = () => {
-  const sub = pos.cart.reduce((a, i) => a + lineUnit(i) * i.qty, 0), disc = discountsApply() ? Math.min(Math.max(Number(pos.discount) || 0, 0), sub) : 0, total = sub - disc;
+  const sub = pos.cart.reduce((a, i) => a + lineUnit(i) * i.qty, 0), disc = discountsApply() && isAdmin() ? Math.min(Math.max(Number(pos.discount) || 0, 0), sub) : 0, total = sub - disc;
   const savings = discountsApply() ? pos.cart.reduce((a, i) => a + ((i.listPrice ?? i.price) - i.price) * i.qty, 0) : 0;   // ahorro por ofertas
   return {sub, disc, total, savings, paid: Number(pos.paid) || 0};
 };
@@ -49,9 +49,9 @@ function drawCart() {
     <div class="totals">
       <div class="r"><span class="muted">Subtotal</span><span class="num" id="tSub">${money(t.sub)}</span></div>
       ${t.savings > 0.004 ? `<div class="r"><span class="muted">Ahorro por ofertas</span><span class="num">-${money(t.savings)}</span></div>` : ''}
-      ${discountsApply()
-        ? `<div class="r"><span class="muted">Descuento ($)</span><input id="posDisc" type="number" min="0" step="0.01" value="${esc(pos.discount)}" placeholder="0.00"></div>`
-        : '<div class="r"><span class="muted">Descuentos</span><span class="muted">solo en efectivo</span></div>'}
+      ${!discountsApply()
+        ? '<div class="r"><span class="muted">Descuentos</span><span class="muted">solo en efectivo</span></div>'
+        : isAdmin() ? `<div class="r"><span class="muted">Descuento ($)</span><input id="posDisc" type="number" min="0" step="0.01" value="${esc(pos.discount)}" placeholder="0.00"></div>` : ''}
       <div class="r grand"><span>Total</span><span class="num" id="tTotal">${money(t.total)}</span></div>
     </div>
     <div class="form-grid" style="margin-top:12px">
@@ -91,7 +91,7 @@ async function checkout() {
   await run($('[data-action=posCheckout]'), async () => {
     let sale;
     try {
-      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: discountsApply() ? Number(pos.discount) || 0 : 0, customer: pos.customer, note: pos.note, paid: Number(pos.paid) || 0, seller: pos.seller});
+      sale = await store.sell({items: pos.cart.map(i => ({pid: i.pid, size: i.size, qty: i.qty})), method: pos.method, discount: t.disc, customer: pos.customer, note: pos.note, paid: Number(pos.paid) || 0, seller: pos.seller});
     } catch (e) {
       await store.reload().catch(() => {});          // el stock pudo cambiar en otro equipo
       drawPosResults(); drawPosSizes(); drawCart();
