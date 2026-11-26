@@ -67,13 +67,11 @@ function drawCart() {
     : '<div class="empty">El carrito está vacío.<br>Busca un producto y elige la talla.</div>';
 }
 /* Administrador y cajero eligen quién hizo la venta: en la lista salen solo las cuentas activas con rol Vendedor.
-   El cajero debe elegir uno si hay vendedores. El administrador (y quien sea Vendedor) puede dejarlo en "Yo". */
+   Si no eligen a nadie ("Yo"), la venta la hizo quien cobra y queda con su nombre. */
 const SELLER_ROLE = 'vendedor';
 const vendorList = () => sellerList().filter(s => s.role === roleName(SELLER_ROLE));
-const mustPickSeller = () => can('sales.assign_seller') && !isAdmin() && store.user.role !== SELLER_ROLE && vendorList().length > 0;
 function sellerOptions() {
-  const first = mustPickSeller() ? 'Selecciona un vendedor…' : `Yo (${store.user.name})`;
-  return `<option value="">${esc(first)}</option>` + vendorList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+  return `<option value="">${esc(`Yo (${store.user.name})`)}</option>` + vendorList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
 }
 /* Aviso bajo el selector cuando la lista de vendedores no se pudo cargar o está vacía */
 function sellerNote() {
@@ -94,7 +92,6 @@ async function checkout() {
   if (!pos.cart.length) return;
   if (pos.method === 'Efectivo' && pos.paid !== '' && t.paid < t.total) return toast('El monto recibido es menor al total', true);
   if (!vendorList().some(s => s.id === pos.seller)) pos.seller = '';   // la elección anterior ya no está en la lista
-  if (mustPickSeller() && !pos.seller) return toast('Selecciona el vendedor que realiza la venta', true);
   await run($('[data-action=posCheckout]'), async () => {
     let sale;
     try {
