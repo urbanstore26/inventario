@@ -67,10 +67,10 @@ function drawCart() {
     : '<div class="empty">El carrito está vacío.<br>Busca un producto y elige la talla.</div>';
 }
 /* Administrador y cajero eligen quién hizo la venta: en la lista salen solo las cuentas activas con rol Vendedor.
-   Si hay vendedores, es obligatorio elegir uno (salvo que quien cobra sea también Vendedor: puede quedar en "Yo"). */
+   El cajero debe elegir uno si hay vendedores. El administrador (y quien sea Vendedor) puede dejarlo en "Yo". */
 const SELLER_ROLE = 'vendedor';
 const vendorList = () => sellerList().filter(s => s.role === roleName(SELLER_ROLE));
-const mustPickSeller = () => can('sales.assign_seller') && store.user.role !== SELLER_ROLE && vendorList().length > 0;
+const mustPickSeller = () => can('sales.assign_seller') && !isAdmin() && store.user.role !== SELLER_ROLE && vendorList().length > 0;
 function sellerOptions() {
   const first = mustPickSeller() ? 'Selecciona un vendedor…' : `Yo (${store.user.name})`;
   return `<option value="">${esc(first)}</option>` + vendorList().map(s => `<option value="${esc(s.id)}"${pos.seller === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
